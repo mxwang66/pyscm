@@ -25,27 +25,27 @@ find_max(PyObject *self, PyObject *args){
     }
 
     // Check the type of the numpy arrays
-    if(PyArray_TYPE(X) != PyArray_DOUBLE){
+    if(PyArray_TYPE(X) != NPY_DOUBLE){
         PyErr_SetString(PyExc_TypeError,
                         "X must be numpy.ndarray type double");
         return NULL;
     }
-    if(PyArray_TYPE(y) != PyArray_LONG){
+    if(PyArray_TYPE(y) != NPY_INTP){
         PyErr_SetString(PyExc_TypeError,
-                        "y must be numpy.ndarray type int");
+                        "y must be numpy.ndarray type intp");
         return NULL;
     }
-    if(PyArray_TYPE(X_argsort_by_feature) != PyArray_LONG){
+    if(PyArray_TYPE(X_argsort_by_feature) != NPY_INTP){
         PyErr_SetString(PyExc_TypeError,
-                        "X_argsort_by_feature must be numpy.ndarray type int");
+                        "X_argsort_by_feature must be numpy.ndarray type intp");
         return NULL;
     }
-    if(PyArray_TYPE(example_idx) != PyArray_LONG){
+    if(PyArray_TYPE(example_idx) != NPY_INTP){
         PyErr_SetString(PyExc_TypeError,
-                        "example_idx must be numpy.ndarray type int");
+                        "example_idx must be numpy.ndarray type intp");
         return NULL;
     }
-    if(feature_weights && PyArray_TYPE(feature_weights) != PyArray_DOUBLE){
+    if(feature_weights && PyArray_TYPE(feature_weights) != NPY_DOUBLE){
         PyErr_SetString(PyExc_TypeError,
                         "feature_weights must be numpy.ndarray type double");
         return NULL;
@@ -72,7 +72,7 @@ find_max(PyObject *self, PyObject *args){
                         "example_idx must be a 1D numpy.ndarray");
         return NULL;
     }
-    if(feature_weights && PyArray_NDIM(example_idx) != 1){
+    if(feature_weights && PyArray_NDIM(feature_weights) != 1){
         PyErr_SetString(PyExc_TypeError,
                         "feature_weights must be a 1D numpy.ndarray");
         return NULL;
@@ -113,15 +113,15 @@ find_max(PyObject *self, PyObject *args){
 
     // Extract the data pointer from the number arrays
     double *X_data;
-    long *y_data, *X_argsort_by_feature_data, *example_idx_data;
-    X_data = (double*)PyArray_DATA(PyArray_GETCONTIGUOUS(X));
-    y_data = (long*)PyArray_DATA(PyArray_GETCONTIGUOUS(y));
-    X_argsort_by_feature_data = (long*)PyArray_DATA(PyArray_GETCONTIGUOUS(X_argsort_by_feature));
-    example_idx_data = (long*)PyArray_DATA(PyArray_GETCONTIGUOUS(example_idx));
+    npy_intp *y_data, *X_argsort_by_feature_data, *example_idx_data;
+    X_data = (double*)PyArray_DATA(X);
+    y_data = (npy_intp*)PyArray_DATA(y);
+    X_argsort_by_feature_data = (npy_intp*)PyArray_DATA(X_argsort_by_feature);
+    example_idx_data = (npy_intp*)PyArray_DATA(example_idx);
 
     double *feature_weights_data;
     if(feature_weights){
-        feature_weights_data = (double*)PyArray_DATA(PyArray_GETCONTIGUOUS(feature_weights));
+        feature_weights_data = (double*)PyArray_DATA(feature_weights);
     }
     else{
         feature_weights_data = new double[X_dim1];
@@ -143,20 +143,20 @@ find_max(PyObject *self, PyObject *args){
     double opti_utility = best_solution.best_utility;
 
     npy_intp dims[] = {best_solution.best_n_equiv};
-    PyObject *opti_feat_idx = PyArray_SimpleNew(1, dims, PyArray_LONG);
-    long *opti_feat_idx_data = (long*)PyArray_DATA(opti_feat_idx);
+    PyObject *opti_feat_idx = PyArray_SimpleNew(1, dims, NPY_INTP);
+    npy_intp *opti_feat_idx_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_feat_idx);
 
-    PyObject *opti_thresholds = PyArray_SimpleNew(1, dims, PyArray_DOUBLE);
-    double *opti_thresholds_data = (double*)PyArray_DATA(opti_thresholds);
+    PyObject *opti_thresholds = PyArray_SimpleNew(1, dims, NPY_DOUBLE);
+    double *opti_thresholds_data = (double*)PyArray_DATA((PyArrayObject*)opti_thresholds);
 
-    PyObject *opti_kinds = PyArray_SimpleNew(1, dims, PyArray_LONG);
-    long *opti_kinds_data = (long*)PyArray_DATA(opti_kinds);
+    PyObject *opti_kinds = PyArray_SimpleNew(1, dims, NPY_INTP);
+    npy_intp *opti_kinds_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_kinds);
 
-    PyObject *opti_N = PyArray_SimpleNew(1, dims, PyArray_LONG);
-    long *opti_N_data = (long*)PyArray_DATA(opti_N);
+    PyObject *opti_N = PyArray_SimpleNew(1, dims, NPY_INTP);
+    npy_intp *opti_N_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_N);
 
-    PyObject *opti_P_bar = PyArray_SimpleNew(1, dims, PyArray_LONG);
-    long *opti_P_bar_data = (long*)PyArray_DATA(opti_P_bar);
+    PyObject *opti_P_bar = PyArray_SimpleNew(1, dims, NPY_INTP);
+    npy_intp *opti_P_bar_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_P_bar);
 
     for(int i = 0; i < best_solution.best_n_equiv; i++){
         opti_feat_idx_data[i] = best_solution.best_feat_idx[i];
@@ -166,17 +166,9 @@ find_max(PyObject *self, PyObject *args){
         opti_P_bar_data[i] = best_solution.best_P_bar[i];
     }
 
-    if (feature_weights){
-        Py_DECREF(feature_weights);
-    }
-    else{
+    if (!feature_weights){
         delete [] feature_weights_data;
     }
-
-    Py_DECREF(X);
-    Py_DECREF(y);
-    Py_DECREF(X_argsort_by_feature);
-    Py_DECREF(example_idx);
 
     return Py_BuildValue("d,N,N,N,N,N",
                          opti_utility,

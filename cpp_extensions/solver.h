@@ -20,18 +20,19 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define CPP_EXTENSIONS_UTILITY_H
 
 #include <vector>
+#include <numpy/ndarraytypes.h>
 
 #include "best_utility.h"
 
 int find_max(double p,
              double *X,
-             long *y,
-             long *Xas,
-             long *example_idx,
+             npy_intp *y,
+             npy_intp *Xas,
+             npy_intp *example_idx,
              double *feature_weights,
-             int n_examples_included, // examples that we are allowed to look at
-             int n_examples,
-             int n_features,
+             npy_intp n_examples_included, // examples that we are allowed to look at
+             npy_intp n_examples,
+             npy_intp n_features,
              BestUtility &out_best_solution);
 
 
