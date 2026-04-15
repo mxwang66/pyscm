@@ -36,7 +36,7 @@ solver_module = Extension(
     include_dirs=[numpy.get_include()]
 )
 
-dependencies = ["numpy<2", "scikit-learn", "six"]
+dependencies = ["numpy>=2", "scikit-learn", "six"]
 
 with open("README.md", "r") as f:
     long_description = f.read()

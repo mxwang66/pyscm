@@ -133,13 +133,13 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         # Invert the classes if we are learning a disjunction
         logging.debug("Preprocessing example labels")
         pos_ex_idx, neg_ex_idx = self._get_example_idx_by_class(y)
-        y = np.zeros(len(y), dtype=int)
+        y = np.zeros(len(y), dtype=np.intp)
         y[pos_ex_idx] = 1
         y[neg_ex_idx] = 0
 
         # Presort all the features
         logging.debug("Presorting all features")
-        X_argsort_by_feature_T = np.argsort(X, axis=0).T.copy()
+        X_argsort_by_feature_T = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
 
         # Create an empty model
         logging.debug("Initializing empty model")
@@ -150,8 +150,8 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         )
 
         logging.debug("Training start")
-        remaining_example_idx = np.arange(len(y))
-        remaining_negative_example_idx = neg_ex_idx
+        remaining_example_idx = np.arange(len(y), dtype=np.intp)
+        remaining_negative_example_idx = neg_ex_idx.astype(np.intp, copy=False)
         while (
             len(remaining_negative_example_idx) > 0
             and len(self.model_) < self.max_rules
@@ -314,13 +314,13 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         return new_rule
 
     def _get_example_idx_by_class_conjunction(self, y):
-        positive_example_idx = np.where(y == 1)[0]
-        negative_example_idx = np.where(y == 0)[0]
+        positive_example_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
+        negative_example_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
         return positive_example_idx, negative_example_idx
 
     def _get_example_idx_by_class_disjunction(self, y):
-        positive_example_idx = np.where(y == 0)[0]
-        negative_example_idx = np.where(y == 1)[0]
+        positive_example_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
+        negative_example_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
         return positive_example_idx, negative_example_idx
 
     def __str__(self):
@@ -355,4 +355,10 @@ class SetCoveringMachineClassifier(BaseSetCoveringMachine):
         )
 
     def _get_best_utility_rules(self, X, y, X_argsort_by_feature_T, example_idx):
-        return find_max_utility(self.p, X, y, X_argsort_by_feature_T, example_idx)
+        return find_max_utility(
+            self.p,
+            X,
+            np.ascontiguousarray(y, dtype=np.intp),
+            np.ascontiguousarray(X_argsort_by_feature_T, dtype=np.intp),
+            np.ascontiguousarray(example_idx, dtype=np.intp),
+        )
