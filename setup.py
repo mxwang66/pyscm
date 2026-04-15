@@ -44,7 +44,7 @@ with open("README.md", "r") as f:
 setup(
     name="pyscm-ml",
     version="1.1.2",
-    packages=find_packages(),
+    packages=find_packages(include=["pyscm", "pyscm.*"]),
     install_requires=dependencies,
     author="Alexandre Drouin",
     author_email="aldro61@gmail.com",
