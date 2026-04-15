@@ -17,5 +17,3 @@
 
 """
 from .scm import SetCoveringMachineClassifier
-
-__all__ = ["SetCoveringMachineClassifier"]
