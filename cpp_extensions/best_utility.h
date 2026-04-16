@@ -1,11 +1,10 @@
 #ifndef CPP_EXTENSIONS_BEST_UTILITY_H
 #define CPP_EXTENSIONS_BEST_UTILITY_H
 
-#include <iostream>
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <algorithm>
-#include <numpy/ndarraytypes.h>
+#include <iostream>
 
 #include "double_utils.h"
 
@@ -16,14 +15,14 @@ private:
     int mem_size;
 public:
     double best_utility;
-    npy_intp *best_feat_idx;
+    std::int64_t *best_feat_idx;
     double *best_feat_threshold;
     uint8_t *best_feat_kind;
-    npy_intp *best_N;
-    npy_intp *best_P_bar;
+    std::int64_t *best_N;
+    std::int64_t *best_P_bar;
     int best_n_equiv;
 
-    BestUtility(int const &memory_size){
+    explicit BestUtility(int const &memory_size){
         this->best_utility = - INFINITY;
         this->best_n_equiv = 0;
         this->resize(memory_size);
@@ -37,8 +36,8 @@ public:
         delete [] this->best_P_bar;
     }
 
-    inline void add_equivalent(npy_intp const &feature_idx, double const &threshold, uint8_t const &kind,
-                                npy_intp const &N, npy_intp const &P_bar);
+    inline void add_equivalent(std::int64_t const &feature_idx, double const &threshold, uint8_t const &kind,
+                               std::int64_t const &N, std::int64_t const &P_bar);
     inline void clear();
     inline void resize(int const &memory_size);
     inline void set_utility(double const &utility);
@@ -47,8 +46,8 @@ public:
     inline bool operator ==(double const& utility);
 };
 
-inline void BestUtility::add_equivalent(npy_intp const &feature_idx, double const &threshold, uint8_t const &kind,
-                                        npy_intp const &N, npy_intp const &P_bar) {
+inline void BestUtility::add_equivalent(std::int64_t const &feature_idx, double const &threshold, uint8_t const &kind,
+                                        std::int64_t const &N, std::int64_t const &P_bar) {
     if(this->best_n_equiv == this->mem_size){
         // We need to resize the array
         this->resize((this->mem_size > 1 ? this->mem_size : 2) * MEM_RESIZE_INCREASE_FACTOR);
@@ -66,11 +65,11 @@ inline void BestUtility::clear() {
 }
 
 inline void BestUtility::resize(int const &memory_size) {
-    npy_intp *best_feat_idx_new = new npy_intp[memory_size];
+    std::int64_t *best_feat_idx_new = new std::int64_t[memory_size];
     double *best_feat_threshold_new = new double[memory_size];
     uint8_t* best_feat_kind_new = new uint8_t[memory_size];
-    npy_intp *best_N_new = new npy_intp[memory_size];
-    npy_intp *best_P_bar_new = new npy_intp[memory_size];
+    std::int64_t *best_N_new = new std::int64_t[memory_size];
+    std::int64_t *best_P_bar_new = new std::int64_t[memory_size];
 
     // Copy the data
     bool copied = false;

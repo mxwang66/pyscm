@@ -7,6 +7,7 @@ from unittest import TestCase
 from sklearn.utils import estimator_checks
 
 from .._scm_utility import find_max
+from ..scm import SetCoveringMachineClassifier
 
 
 def eprint(*args, **kwargs):
@@ -212,6 +213,37 @@ class UtilityTests(TestCase):
         ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(X.shape[1]))
         np.testing.assert_almost_equal(actual=best_N, desired=[2, 2])
         np.testing.assert_almost_equal(actual=best_P_bar, desired=[1, 1])
+
+
+    def test_direct_call_without_feature_weights(self):
+        """Direct extension call should support default feature_weights=None."""
+        X = np.array([[1.0], [2.0], [3.0]], dtype=np.double)
+        y = np.array([0, 1, 1], dtype=np.intp)
+        Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
+
+        result = find_max(1.0, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
+
+        self.assertEqual(len(result), 6)
+        np.testing.assert_array_equal(result[1], np.array([0], dtype=np.int64))
+
+    def test_estimator_fit_still_works(self):
+        """High-level estimator fit path should still work."""
+        X = np.array([[0.0], [1.0], [2.0], [3.0]], dtype=np.double)
+        y = np.array([0, 0, 1, 1], dtype=np.intp)
+
+        model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
+        model.fit(X, y)
+
+        self.assertGreaterEqual(len(model.model_), 1)
+
+    def test_estimator_rejects_utility_feature_weights_fit_param(self):
+        """Estimator no longer accepts utility__feature_weights fit param."""
+        X = np.array([[0.0], [1.0], [2.0], [3.0]], dtype=np.double)
+        y = np.array([0, 0, 1, 1], dtype=np.intp)
+        model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
+
+        with self.assertRaisesRegex(ValueError, r"utility__\* fit parameters"):
+            model.fit(X, y, utility__feature_weights=np.array([1.0], dtype=np.double))
 
     def test_random_data(self):
         """

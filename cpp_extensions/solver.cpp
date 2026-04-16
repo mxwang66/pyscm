@@ -1,5 +1,5 @@
 #include <cmath>
-#include <iostream>
+#include <cstdint>
 
 #include "best_utility.h"
 #include "solver.h"
@@ -9,8 +9,9 @@
  * Solver
  */
 
-void get_n_examples_by_class(const bool* example_is_included, const npy_intp* y, const npy_intp &n_examples, npy_intp &n_negative, npy_intp &n_positive){
-    for(npy_intp i = 0; i < n_examples; i++){
+void get_n_examples_by_class(const bool* example_is_included, const std::int64_t* y, const std::int64_t &n_examples,
+                             std::int64_t &n_negative, std::int64_t &n_positive){
+    for(std::int64_t i = 0; i < n_examples; i++){
         if(example_is_included[i]){
             if(y[i] == 0){
                 n_negative ++;
@@ -22,11 +23,12 @@ void get_n_examples_by_class(const bool* example_is_included, const npy_intp* y,
     }
 }
 
-void update_optimal_solution(BestUtility &best_solution, npy_intp const &feature_idx, double const &threshold,
-                             npy_intp const &N, npy_intp const &P_bar, double const &p, double const &feature_weight,
-                             npy_intp const &n_negative, npy_intp const &n_positive){
+void update_optimal_solution(BestUtility &best_solution, std::int64_t const &feature_idx, double const &threshold,
+                             std::int64_t const &N, std::int64_t const &P_bar, double const &p,
+                             double const &feature_weight, std::int64_t const &n_negative,
+                             std::int64_t const &n_positive){
     // Get utility for x > t and check if optimal
-    double utility_0 = ((double) N - p * (double) P_bar) * feature_weight;
+    double utility_0 = (static_cast<double>(N) - p * static_cast<double>(P_bar)) * feature_weight;
     if(best_solution < utility_0){
         best_solution.clear();
         best_solution.set_utility(utility_0);
@@ -36,9 +38,9 @@ void update_optimal_solution(BestUtility &best_solution, npy_intp const &feature
     }
 
     // Get utility for x <= t and check if optimal
-    npy_intp N_1 = n_negative - N;
-    npy_intp P_bar_1 = n_positive - P_bar;
-    double utility_1 = ((double) N_1 - p * (double) P_bar_1) * feature_weight;
+    std::int64_t N_1 = n_negative - N;
+    std::int64_t P_bar_1 = n_positive - P_bar;
+    double utility_1 = (static_cast<double>(N_1) - p * static_cast<double>(P_bar_1)) * feature_weight;
     if(best_solution < utility_1){
         best_solution.clear();
         best_solution.set_utility(utility_1);
@@ -49,48 +51,45 @@ void update_optimal_solution(BestUtility &best_solution, npy_intp const &feature
 }
 
 int find_max(double p,
-             double *X,
-             npy_intp *y,
-             npy_intp *Xas,
-             npy_intp *example_idx,
-             double *feature_weights,
-             npy_intp n_examples_included,
-             npy_intp n_examples,
-             npy_intp n_features,
+             const double *X,
+             const std::int64_t *y,
+             const std::int64_t *Xas,
+             const std::int64_t *example_idx,
+             const double *feature_weights,
+             std::int64_t n_examples_included,
+             std::int64_t n_examples,
+             std::int64_t n_features,
              BestUtility &out_best_solution){
 
     // Make a mask that tells us which examples should be considered in the utility calculations
     bool *example_is_included = new bool[n_examples];
     std::fill_n(example_is_included, n_examples, false);
-    
-    for(npy_intp i = 0; i < n_examples_included; i++){
+
+    for(std::int64_t i = 0; i < n_examples_included; i++){
         example_is_included[example_idx[i]] = true;
     }
 
     // Find the number of positive and negative examples
-    npy_intp n_negative = 0, n_positive = 0;
+    std::int64_t n_negative = 0, n_positive = 0;
     get_n_examples_by_class(example_is_included, y, n_examples, n_negative, n_positive);
 
     // Utility calculations start
-    for(npy_intp i = 0; i < n_features; i++){
+    for(std::int64_t i = 0; i < n_features; i++){
 
         // For each threshold of this feature (a threshold is an example's feature value)
-        npy_intp N, P_bar, prev_N, prev_P_bar;
-        double prev_threshold;
+        std::int64_t N = 0, P_bar = 0, prev_N = 0, prev_P_bar = 0;
+        double prev_threshold = -INFINITY;
 
-        prev_N = 0;
-        prev_P_bar = 0;
-        prev_threshold = -INFINITY;
-        for(npy_intp j = 0; j < n_examples; j++){
+        for(std::int64_t j = 0; j < n_examples; j++){
 
             // Get the index of the next example according to the sorting
-            npy_intp idx = Xas[i * n_examples + j];
+            std::int64_t idx = Xas[i * n_examples + j];
 
             // Consider this example only if it is included in the calculations
             if(example_is_included[idx]){
 
                 // Get the example's label and threshold
-                npy_intp label = y[idx];
+                std::int64_t label = y[idx];
                 double threshold = X[idx * n_features + i];
 
                 // Wait for the last example with this threshold before computing the utilities

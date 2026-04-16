@@ -16,10 +16,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-import numpy
 from platform import system as get_os_name
+
+import pybind11
 from setuptools import Extension, find_packages, setup
-from setuptools.command.build_ext import build_ext as _build_ext
 
 # Configure the compiler based on the OS
 if get_os_name().lower() == "darwin":
@@ -32,8 +32,8 @@ solver_module = Extension(
     "pyscm._scm_utility",
     language="c++",
     sources=["cpp_extensions/utility_python_bindings.cpp", "cpp_extensions/solver.cpp"],
-    extra_compile_args=["-std=c++0x"] + os_compile_flags,
-    include_dirs=[numpy.get_include()]
+    extra_compile_args=["-std=c++14"] + os_compile_flags,
+    include_dirs=[pybind11.get_include()],
 )
 
 dependencies = ["numpy>=2", "scikit-learn", "six"]
