@@ -105,11 +105,16 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
 
         # Parse additional fit parameters
         logging.debug("Parsing additional fit parameters")
-        utility_function_additional_args = {}
         if fit_params is not None:
-            for key, value in iteritems(fit_params):
-                if key[:9] == "utility__":
-                    utility_function_additional_args[key[9:]] = value
+            unsupported_utility_params = [
+                key for key in fit_params if key.startswith("utility__")
+            ]
+            if unsupported_utility_params:
+                raise ValueError(
+                    "utility__* fit parameters are no longer supported: {0}".format(
+                        ", ".join(sorted(unsupported_utility_params))
+                    )
+                )
 
         # Validate the input data
         logging.debug("Validating the input data")
@@ -169,7 +174,6 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
                 y.copy(),
                 X_argsort_by_feature_T.copy(),
                 remaining_example_idx.copy(),
-                **utility_function_additional_args
             )
 
             logging.debug(

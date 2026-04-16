@@ -1,216 +1,123 @@
-#include <Python.h>
-#include <numpy/arrayobject.h>
-
+#include <cstdint>
+#include <stdexcept>
 #include <vector>
-#include <iostream>
+
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
 
 #include "best_utility.h"
 #include "solver.h"
 
-static PyObject *
-find_max(PyObject *self, PyObject *args){
-    double p;
-    PyArrayObject *X, *y, *X_argsort_by_feature, *example_idx; //borrowed
-    PyArrayObject *feature_weights = NULL;
+namespace py = pybind11;
 
-    // Extract the argument values
-    if(!PyArg_ParseTuple(args, "dO!O!O!O!|O!",
-                         &p,
-                         &PyArray_Type, &X,
-                         &PyArray_Type, &y,
-                         &PyArray_Type, &X_argsort_by_feature,
-                         &PyArray_Type, &example_idx,
-                         &PyArray_Type, &feature_weights)){
-        return NULL;
+py::tuple find_max_binding(
+        double p,
+        py::array_t<double, py::array::c_style | py::array::forcecast> X,
+        py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> y,
+        py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> X_argsort_by_feature_T,
+        py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> example_idx,
+        py::object feature_weights_obj) {
+    if (X.ndim() != 2) {
+        throw py::type_error("X must be a 2D numpy.ndarray");
     }
-
-    // Check the type of the numpy arrays
-    if(PyArray_TYPE(X) != NPY_DOUBLE){
-        PyErr_SetString(PyExc_TypeError,
-                        "X must be numpy.ndarray type double");
-        return NULL;
+    if (y.ndim() != 1) {
+        throw py::type_error("y must be a 1D numpy.ndarray");
     }
-    if(PyArray_TYPE(y) != NPY_INTP){
-        PyErr_SetString(PyExc_TypeError,
-                        "y must be numpy.ndarray type intp");
-        return NULL;
+    if (X_argsort_by_feature_T.ndim() != 2) {
+        throw py::type_error("X_argsort_by_feature_T must be a 2D numpy.ndarray");
     }
-    if(PyArray_TYPE(X_argsort_by_feature) != NPY_INTP){
-        PyErr_SetString(PyExc_TypeError,
-                        "X_argsort_by_feature must be numpy.ndarray type intp");
-        return NULL;
-    }
-    if(PyArray_TYPE(example_idx) != NPY_INTP){
-        PyErr_SetString(PyExc_TypeError,
-                        "example_idx must be numpy.ndarray type intp");
-        return NULL;
-    }
-    if(feature_weights && PyArray_TYPE(feature_weights) != NPY_DOUBLE){
-        PyErr_SetString(PyExc_TypeError,
-                        "feature_weights must be numpy.ndarray type double");
-        return NULL;
+    if (example_idx.ndim() != 1) {
+        throw py::type_error("example_idx must be a 1D numpy.ndarray");
     }
 
-    // Check the number of dimensions of the numpy arrays
-    if(PyArray_NDIM(X) != 2){
-        PyErr_SetString(PyExc_TypeError,
-                        "X must be a 2D numpy.ndarray");
-        return NULL;
+    const auto n_examples = static_cast<std::int64_t>(X.shape(0));
+    const auto n_features = static_cast<std::int64_t>(X.shape(1));
+
+    if (static_cast<std::int64_t>(y.shape(0)) != n_examples) {
+        throw py::type_error("X and y must have the same number of rows");
     }
-    if(PyArray_NDIM(y) != 1){
-        PyErr_SetString(PyExc_TypeError,
-                        "y must be a 1D numpy.ndarray");
-        return NULL;
+    if (static_cast<std::int64_t>(X_argsort_by_feature_T.shape(0)) != n_features) {
+        throw py::type_error("X must have as many columns as X_argsort_by_feature_T has rows");
     }
-    if(PyArray_NDIM(X_argsort_by_feature) != 2){
-        PyErr_SetString(PyExc_TypeError,
-                        "X_argsort_by_feature must be a 2D numpy.ndarray");
-        return NULL;
-    }
-    if(PyArray_NDIM(example_idx) != 1){
-        PyErr_SetString(PyExc_TypeError,
-                        "example_idx must be a 1D numpy.ndarray");
-        return NULL;
-    }
-    if(feature_weights && PyArray_NDIM(feature_weights) != 1){
-        PyErr_SetString(PyExc_TypeError,
-                        "feature_weights must be a 1D numpy.ndarray");
-        return NULL;
+    if (static_cast<std::int64_t>(X_argsort_by_feature_T.shape(1)) != n_examples) {
+        throw py::type_error("X must have as many rows as X_argsort_by_feature_T has columns");
     }
 
-    // Check that the dimension sizes match
-    npy_intp X_dim0 = PyArray_DIM(X, 0);
-    npy_intp X_dim1 = PyArray_DIM(X, 1);
-    npy_intp y_dim0 = PyArray_DIM(y, 0);
-    npy_intp X_argsort_by_feature_dim0 = PyArray_DIM(X_argsort_by_feature, 0);
-    npy_intp X_argsort_by_feature_dim1 = PyArray_DIM(X_argsort_by_feature, 1);
-    npy_intp example_idx_dim0 = PyArray_DIM(example_idx, 0);
-    npy_intp feature_weights_dim0 = 0;
-    if(feature_weights){
-        feature_weights_dim0 = PyArray_DIM(feature_weights, 0);
-    }
+    py::array_t<double, py::array::c_style | py::array::forcecast> feature_weights_array;
+    std::vector<double> default_feature_weights;
 
-    if(X_dim0 != y_dim0){
-        PyErr_SetString(PyExc_TypeError,
-                        "X and y must have the same number of rows");
-        return NULL;
-    }
-    if(X_dim0 != X_argsort_by_feature_dim1){
-        PyErr_SetString(PyExc_TypeError,
-                        "X must have as many rows as X_argsort_by_feature has columns.");
-        return NULL;
-    }
-    if(X_dim1 != X_argsort_by_feature_dim0){
-        PyErr_SetString(PyExc_TypeError,
-                        "X must have as many columns as X_argsort_by_feature has rows");
-        return NULL;
-    }
-    if(feature_weights && feature_weights_dim0 != X_dim1){
-        PyErr_SetString(PyExc_TypeError,
-                        "feature_weights must have shape X.shape[1]");
-        return NULL;
-    }
-
-    // Extract the data pointer from the number arrays
-    double *X_data;
-    npy_intp *y_data, *X_argsort_by_feature_data, *example_idx_data;
-    X_data = (double*)PyArray_DATA(X);
-    y_data = (npy_intp*)PyArray_DATA(y);
-    X_argsort_by_feature_data = (npy_intp*)PyArray_DATA(X_argsort_by_feature);
-    example_idx_data = (npy_intp*)PyArray_DATA(example_idx);
-
-    double *feature_weights_data;
-    if(feature_weights){
-        feature_weights_data = (double*)PyArray_DATA(feature_weights);
-    }
-    else{
-        feature_weights_data = new double[X_dim1];
-        std::fill_n(feature_weights_data, X_dim1, 1);
+    const double *feature_weights_data = nullptr;
+    if (feature_weights_obj.is_none()) {
+        default_feature_weights.assign(static_cast<size_t>(n_features), 1.0);
+        feature_weights_data = default_feature_weights.data();
+    } else {
+        feature_weights_array = py::cast<py::array_t<double, py::array::c_style | py::array::forcecast>>(feature_weights_obj);
+        if (feature_weights_array.ndim() != 1) {
+            throw py::type_error("feature_weights must be a 1D numpy.ndarray");
+        }
+        if (static_cast<std::int64_t>(feature_weights_array.shape(0)) != n_features) {
+            throw py::type_error("feature_weights must have shape X.shape[1]");
+        }
+        feature_weights_data = feature_weights_array.data();
     }
 
     BestUtility best_solution(100);
-    int status = find_max(p, X_data, y_data, X_argsort_by_feature_data, example_idx_data, feature_weights_data,
-                          example_idx_dim0, X_dim0, X_dim1, best_solution);
+    const int status = find_max(
+            p,
+            X.data(),
+            y.data(),
+            X_argsort_by_feature_T.data(),
+            example_idx.data(),
+            feature_weights_data,
+            static_cast<std::int64_t>(example_idx.shape(0)),
+            n_examples,
+            n_features,
+            best_solution);
 
-    if(status != 0){
-        PyErr_SetString(PyExc_TypeError,
-                        "An error occurred in the solver");
-        return NULL;
+    if (status != 0) {
+        throw std::runtime_error("An error occurred in the solver");
     }
 
-    // Prepare variables for return
+    const py::ssize_t n_equiv = best_solution.best_n_equiv;
+    py::array_t<std::int64_t> opti_feat_idx(n_equiv);
+    py::array_t<double> opti_thresholds(n_equiv);
+    py::array_t<std::int64_t> opti_kinds(n_equiv);
+    py::array_t<std::int64_t> opti_N(n_equiv);
+    py::array_t<std::int64_t> opti_P_bar(n_equiv);
 
-    double opti_utility = best_solution.best_utility;
+    auto opti_feat_idx_mut = opti_feat_idx.mutable_unchecked<1>();
+    auto opti_thresholds_mut = opti_thresholds.mutable_unchecked<1>();
+    auto opti_kinds_mut = opti_kinds.mutable_unchecked<1>();
+    auto opti_N_mut = opti_N.mutable_unchecked<1>();
+    auto opti_P_bar_mut = opti_P_bar.mutable_unchecked<1>();
 
-    npy_intp dims[] = {best_solution.best_n_equiv};
-    PyObject *opti_feat_idx = PyArray_SimpleNew(1, dims, NPY_INTP);
-    npy_intp *opti_feat_idx_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_feat_idx);
-
-    PyObject *opti_thresholds = PyArray_SimpleNew(1, dims, NPY_DOUBLE);
-    double *opti_thresholds_data = (double*)PyArray_DATA((PyArrayObject*)opti_thresholds);
-
-    PyObject *opti_kinds = PyArray_SimpleNew(1, dims, NPY_INTP);
-    npy_intp *opti_kinds_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_kinds);
-
-    PyObject *opti_N = PyArray_SimpleNew(1, dims, NPY_INTP);
-    npy_intp *opti_N_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_N);
-
-    PyObject *opti_P_bar = PyArray_SimpleNew(1, dims, NPY_INTP);
-    npy_intp *opti_P_bar_data = (npy_intp*)PyArray_DATA((PyArrayObject*)opti_P_bar);
-
-    for(int i = 0; i < best_solution.best_n_equiv; i++){
-        opti_feat_idx_data[i] = best_solution.best_feat_idx[i];
-        opti_thresholds_data[i] = best_solution.best_feat_threshold[i];
-        opti_kinds_data[i] = best_solution.best_feat_kind[i];
-        opti_N_data[i] = best_solution.best_N[i];
-        opti_P_bar_data[i] = best_solution.best_P_bar[i];
+    for (py::ssize_t i = 0; i < n_equiv; ++i) {
+        opti_feat_idx_mut(i) = best_solution.best_feat_idx[i];
+        opti_thresholds_mut(i) = best_solution.best_feat_threshold[i];
+        opti_kinds_mut(i) = best_solution.best_feat_kind[i];
+        opti_N_mut(i) = best_solution.best_N[i];
+        opti_P_bar_mut(i) = best_solution.best_P_bar[i];
     }
 
-    if (!feature_weights){
-        delete [] feature_weights_data;
-    }
-
-    return Py_BuildValue("d,N,N,N,N,N",
-                         opti_utility,
-                         opti_feat_idx,
-                         opti_thresholds,
-                         opti_kinds,
-                         opti_N,
-                         opti_P_bar);
+    return py::make_tuple(
+            best_solution.best_utility,
+            opti_feat_idx,
+            opti_thresholds,
+            opti_kinds,
+            opti_N,
+            opti_P_bar);
 }
 
-
-/***********************************************************************************************************************
- *                                                  MODULE DECLARATION
- **********************************************************************************************************************/
-static PyMethodDef Methods[] = {
-        {"find_max", find_max, METH_VARARGS,
-                        "Find the split of maximum utility."},
-        {NULL, NULL, 0, NULL}
-};
-
-#if PY_MAJOR_VERSION >= 3
-
-static struct PyModuleDef _scm_utility_module = {
-    PyModuleDef_HEAD_INIT,
-    "_scm_utility",
-    NULL,
-    -1,
-    Methods
-};
-
-PyMODINIT_FUNC PyInit__scm_utility() {
-    import_array();
-    return PyModule_Create(&_scm_utility_module);
-};
-
-#else
-
-PyMODINIT_FUNC
-init_scm_utility
-        (void){
-    (void)Py_InitModule("_scm_utility", Methods);
-    import_array();//necessary from numpy otherwise we crash with segfault
+PYBIND11_MODULE(_scm_utility, m) {
+    m.doc() = "SCM utility maximization solver";
+    m.def(
+            "find_max",
+            &find_max_binding,
+            py::arg("p"),
+            py::arg("X"),
+            py::arg("y"),
+            py::arg("X_argsort_by_feature_T"),
+            py::arg("example_idx"),
+            py::arg("feature_weights") = py::none(),
+            "Find the split of maximum utility.");
 }
-
-#endif
