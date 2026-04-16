@@ -119,7 +119,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         # Validate the input data
         logging.debug("Validating the input data")
         X, y = check_X_y(X, y)
-        X = np.asarray(X, dtype=np.double)
+        X = np.asarray(X, dtype=np.double, order="C")
         self.classes_, y, total_n_ex_by_class = np.unique(
             y, return_inverse=True, return_counts=True
         )
@@ -138,9 +138,10 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         # Invert the classes if we are learning a disjunction
         logging.debug("Preprocessing example labels")
         pos_ex_idx, neg_ex_idx = self._get_example_idx_by_class(y)
-        y = np.zeros(len(y), dtype=np.intp)
-        y[pos_ex_idx] = 1
-        y[neg_ex_idx] = 0
+        y_binary = np.zeros(len(y), dtype=np.intp)
+        y_binary[pos_ex_idx] = 1
+        y_binary[neg_ex_idx] = 0
+        y_binary = np.ascontiguousarray(y_binary, dtype=np.intp)
 
         # Presort all the features
         logging.debug("Presorting all features")
@@ -155,7 +156,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         )
 
         logging.debug("Training start")
-        remaining_example_idx = np.arange(len(y), dtype=np.intp)
+        remaining_example_idx = np.arange(len(y_binary), dtype=np.intp)
         remaining_negative_example_idx = neg_ex_idx.astype(np.intp, copy=False)
         while (
             len(remaining_negative_example_idx) > 0
@@ -170,10 +171,10 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
                 opti_N,
                 opti_P_bar,
             ) = self._get_best_utility_rules(
-                X.copy(),
-                y.copy(),
-                X_argsort_by_feature_T.copy(),
-                remaining_example_idx.copy(),
+                X,
+                y_binary,
+                X_argsort_by_feature_T,
+                remaining_example_idx,
             )
 
             logging.debug(
@@ -269,8 +270,10 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
         X = check_array(X)
         pos_proba = self.classes_[self.model_.predict(X)]
-        neg_proba = 1.0 - pos_proba
-        return np.hstack((neg_proba.reshape(-1, 1), pos_proba.reshape(-1, 1)))
+        proba = np.empty((X.shape[0], 2), dtype=np.result_type(pos_proba, np.float64))
+        proba[:, 1] = pos_proba
+        proba[:, 0] = 1.0 - pos_proba
+        return proba
     
     @property
     def rule_importances(self):
@@ -362,7 +365,7 @@ class SetCoveringMachineClassifier(BaseSetCoveringMachine):
         return find_max_utility(
             self.p,
             X,
-            np.ascontiguousarray(y, dtype=np.intp),
-            np.ascontiguousarray(X_argsort_by_feature_T, dtype=np.intp),
-            np.ascontiguousarray(example_idx, dtype=np.intp),
+            y,
+            X_argsort_by_feature_T,
+            np.asarray(example_idx, dtype=np.intp, order="C"),
         )

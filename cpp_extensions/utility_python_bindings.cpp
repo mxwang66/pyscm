@@ -10,13 +10,34 @@
 
 namespace py = pybind11;
 
+template <typename T>
+py::array_t<T, py::array::c_style> ensure_c_style_array(
+        const py::handle &obj,
+        const char *name) {
+    auto fast_path = py::array_t<T, py::array::c_style>::ensure(obj);
+    if (fast_path) {
+        return fast_path;
+    }
+
+    try {
+        return py::cast<py::array_t<T, py::array::c_style | py::array::forcecast>>(obj);
+    } catch (const py::cast_error &) {
+        throw py::type_error(std::string(name) + " has an incompatible dtype");
+    }
+}
+
 py::tuple find_max_binding(
         double p,
-        py::array_t<double, py::array::c_style | py::array::forcecast> X,
-        py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> y,
-        py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> X_argsort_by_feature_T,
-        py::array_t<std::int64_t, py::array::c_style | py::array::forcecast> example_idx,
+        py::object X_obj,
+        py::object y_obj,
+        py::object X_argsort_by_feature_T_obj,
+        py::object example_idx_obj,
         py::object feature_weights_obj) {
+    auto X = ensure_c_style_array<double>(X_obj, "X");
+    auto y = ensure_c_style_array<std::int64_t>(y_obj, "y");
+    auto X_argsort_by_feature_T = ensure_c_style_array<std::int64_t>(X_argsort_by_feature_T_obj, "X_argsort_by_feature_T");
+    auto example_idx = ensure_c_style_array<std::int64_t>(example_idx_obj, "example_idx");
+
     if (X.ndim() != 2) {
         throw py::type_error("X must be a 2D numpy.ndarray");
     }
@@ -43,7 +64,7 @@ py::tuple find_max_binding(
         throw py::type_error("X must have as many rows as X_argsort_by_feature_T has columns");
     }
 
-    py::array_t<double, py::array::c_style | py::array::forcecast> feature_weights_array;
+    py::array_t<double, py::array::c_style> feature_weights_array;
     std::vector<double> default_feature_weights;
 
     const double *feature_weights_data = nullptr;
@@ -51,7 +72,7 @@ py::tuple find_max_binding(
         default_feature_weights.assign(static_cast<size_t>(n_features), 1.0);
         feature_weights_data = default_feature_weights.data();
     } else {
-        feature_weights_array = py::cast<py::array_t<double, py::array::c_style | py::array::forcecast>>(feature_weights_obj);
+        feature_weights_array = ensure_c_style_array<double>(feature_weights_obj, "feature_weights");
         if (feature_weights_array.ndim() != 1) {
             throw py::type_error("feature_weights must be a 1D numpy.ndarray");
         }

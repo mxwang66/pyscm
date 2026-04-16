@@ -14,6 +14,16 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+class _TrackingSCM(SetCoveringMachineClassifier):
+    def __init__(self, *args, **kwargs):
+        super(_TrackingSCM, self).__init__(*args, **kwargs)
+        self._fit_call_ids = []
+
+    def _get_best_utility_rules(self, X, y, X_argsort_by_feature_T, example_idx):
+        self._fit_call_ids.append((id(X), id(y), id(X_argsort_by_feature_T), id(example_idx)))
+        return super(_TrackingSCM, self)._get_best_utility_rules(X, y, X_argsort_by_feature_T, example_idx)
+
+
 class UtilityTests(TestCase):
     def setUp(self):
         """
@@ -244,6 +254,41 @@ class UtilityTests(TestCase):
 
         with self.assertRaisesRegex(ValueError, r"utility__\* fit parameters"):
             model.fit(X, y, utility__feature_weights=np.array([1.0], dtype=np.double))
+
+
+    def test_fit_reuses_main_training_buffers(self):
+        """fit should avoid per-iteration copies of full training arrays."""
+        X = np.array(
+            [
+                [0.0, 0.0],
+                [0.0, 1.0],
+                [1.0, 0.0],
+                [1.0, 1.0],
+                [2.0, 0.0],
+                [2.0, 1.0],
+            ],
+            dtype=np.double,
+        )
+        y = np.array([0, 0, 1, 1, 0, 1], dtype=np.intp)
+
+        model = _TrackingSCM(max_rules=3, random_state=0)
+        model.fit(X, y)
+
+        self.assertGreaterEqual(len(model._fit_call_ids), 1)
+        self.assertEqual(len({call[0] for call in model._fit_call_ids}), 1)
+        self.assertEqual(len({call[1] for call in model._fit_call_ids}), 1)
+        self.assertEqual(len({call[2] for call in model._fit_call_ids}), 1)
+
+    def test_find_max_accepts_non_contiguous_inputs(self):
+        """Extension should continue to accept non C-contiguous and non-int64 inputs."""
+        X = np.asfortranarray(np.array([[1.0], [2.0], [3.0], [4.0]], dtype=np.float32))
+        y = np.array([0, 1, 1, 1], dtype=np.int32)
+        Xas = np.asfortranarray(np.argsort(X, axis=0).T.astype(np.int32, copy=False))
+        example_idx = np.array([0, 1, 2, 3], dtype=np.int32)
+
+        result = find_max(1.0, X, y, Xas, example_idx)
+
+        self.assertEqual(len(result), 6)
 
     def test_random_data(self):
         """
