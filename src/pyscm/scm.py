@@ -134,19 +134,6 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         if iteration_callback is None:
             iteration_callback = lambda x: None
 
-        # Parse additional fit parameters
-        logging.debug("Parsing additional fit parameters")
-        if fit_params is not None:
-            unsupported_utility_params = [
-                key for key in fit_params if key.startswith("utility__")
-            ]
-            if unsupported_utility_params:
-                raise ValueError(
-                    "utility__* fit parameters are no longer supported: {0}".format(
-                        ", ".join(sorted(unsupported_utility_params))
-                    )
-                )
-
         # Validate the input data
         logging.debug("Validating the input data")
         X, y, self.classes_, total_n_ex_by_class = self._validate_fit_inputs(
@@ -165,13 +152,13 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         # Invert the classes if we are learning a disjunction
         logging.debug("Preprocessing example labels")
         pos_ex_idx, neg_ex_idx = self._get_example_idx_by_class(y)
-        y_binary = np.zeros(len(y), dtype=np.uint8)
-        y_binary[pos_ex_idx] = 1
-        y_binary[neg_ex_idx] = 0
+        y_unified = np.zeros(len(y), dtype=np.uint8)
+        y_unified[pos_ex_idx] = 1
+        y_unified[neg_ex_idx] = 0
 
         # Presort all the features
         logging.debug("Presorting all features")
-        X_argsort_by_feature_T = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
+        X_argsort_by_feature_T = np.argsort(X.T, axis=1)
 
         # Create an empty model
         logging.debug("Initializing empty model")
@@ -182,7 +169,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         )
 
         logging.debug("Training start")
-        remaining_example_idx = np.arange(len(y_binary), dtype=np.intp)
+        remaining_example_idx = np.arange(len(y_unified), dtype=np.intp)
         remaining_negative_example_idx = neg_ex_idx.astype(np.intp, copy=False)
         while (
             len(remaining_negative_example_idx) > 0
@@ -198,7 +185,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
                 opti_P_bar,
             ) = self._get_best_utility_rules(
                 X,
-                y_binary,
+                y_unified,
                 X_argsort_by_feature_T,
                 remaining_example_idx,
             )
