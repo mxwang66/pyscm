@@ -17,7 +17,9 @@ class SklearnCompatibilityTests(TestCase):
 
         """
         rnd = np.random.RandomState(0)
-        X = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
+        X = np.asfortranarray(
+            np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
+        )
         y = np.random.randint(0, 2, size=100, dtype=np.uint8)
 
         scm_param_grid = {
@@ -26,23 +28,36 @@ class SklearnCompatibilityTests(TestCase):
             "model_type": ["conjunction", "disjunction"],
             "random_state": [rnd],
         }
+        fortran_pipeline = Pipeline(
+            [
+                (
+                    "FortranLayout",
+                    FunctionTransformer(
+                        lambda X: np.asfortranarray(X), validate=False
+                    ),
+                ),
+                ("SCM", SetCoveringMachineClassifier()),
+            ]
+        )
+        pipeline_param_grid = {"SCM__" + k: v for k, v in scm_param_grid.items()}
+
         gscv = GridSearchCV(
-            SetCoveringMachineClassifier(), scm_param_grid, n_jobs=1, cv=5
+            fortran_pipeline, pipeline_param_grid, n_jobs=1, cv=5
         )
         try:
             gscv.fit(X, y)
         except Exception as e:
-            self.fail("GridSearchCV.fit() raised " + e.message + " unexpectedly!")
+            self.fail("GridSearchCV.fit() raised " + str(e) + " unexpectedly!")
 
         gscv = GridSearchCV(
-            SetCoveringMachineClassifier(), scm_param_grid, n_jobs=2, cv=5
+            fortran_pipeline, pipeline_param_grid, n_jobs=2, cv=5
         )
         try:
             gscv.fit(X, y)
         except Exception as e:
             self.fail(
                 "GridSearchCV.fit() raised "
-                + e.message
+                + str(e)
                 + " unexpectedly when running with 2 jobs!"
             )
 
@@ -52,7 +67,9 @@ class SklearnCompatibilityTests(TestCase):
 
         """
         rnd = np.random.RandomState(0)
-        X = np.random.randint(0, 256, size=(10, 10), dtype=np.uint8)
+        X = np.asfortranarray(
+            np.random.randint(0, 256, size=(10, 10), dtype=np.uint8)
+        )
         y = np.random.randint(0, 2, size=10, dtype=np.uint8)
 
         scm = SetCoveringMachineClassifier(

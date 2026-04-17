@@ -51,7 +51,7 @@ void update_optimal_solution(BestUtility &best_solution, std::int64_t const &fea
 }
 
 int find_max(double p,
-             const uint8_t *X,
+             const uint8_t *Xt,
              const uint8_t *y,
              const std::int64_t *Xas,
              const std::int64_t *example_idx,
@@ -90,7 +90,7 @@ int find_max(double p,
 
                 // Get the example's label and threshold
                 uint8_t label = y[idx];
-                uint8_t threshold = X[idx * n_features + i];
+                uint8_t threshold = Xt[i * n_examples + idx];
 
                 // Wait for the last example with this threshold before computing the utilities
                 if(has_prev_threshold && threshold != prev_threshold){

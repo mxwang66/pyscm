@@ -66,8 +66,8 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
             raise TypeError("X must have dtype np.uint8.")
         if X.ndim != 2:
             raise ValueError("X must be a 2D array.")
-        if not X.flags.c_contiguous:
-            raise ValueError("X must be C-contiguous.")
+        if not X.flags.f_contiguous:
+            raise ValueError("X must be F-contiguous.")
         return X
 
     def _validate_fit_inputs(self, X, y):
@@ -139,6 +139,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         X, y, self.classes_, total_n_ex_by_class = self._validate_fit_inputs(
             X, y
         )
+        Xt = X.T
         logging.debug(
             "The data contains {0:d} examples. Negative class is {1!s} (n: {2:d}) and positive class is {3!s} (n: {4:d}).".format(
                 len(y),
@@ -184,7 +185,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
                 opti_N,
                 opti_P_bar,
             ) = self._get_best_utility_rules(
-                X,
+                Xt,
                 y_unified,
                 X_argsort_by_feature_T,
                 remaining_example_idx,
@@ -380,10 +381,10 @@ class SetCoveringMachineClassifier(BaseSetCoveringMachine):
             p=p, model_type=model_type, max_rules=max_rules, random_state=random_state
         )
 
-    def _get_best_utility_rules(self, X, y, X_argsort_by_feature_T, example_idx):
+    def _get_best_utility_rules(self, Xt, y, X_argsort_by_feature_T, example_idx):
         return find_max_utility(
             self.p,
-            X,
+            Xt,
             y,
             X_argsort_by_feature_T,
             example_idx,

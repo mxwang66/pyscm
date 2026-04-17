@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "best_utility.h"
 
 int find_max(double p,
-             const uint8_t *X,
+             const uint8_t *Xt,
              const uint8_t *y,
              const std::int64_t *Xas,
              const std::int64_t *example_idx,
