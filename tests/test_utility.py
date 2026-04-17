@@ -1,17 +1,11 @@
 from __future__ import print_function, division, absolute_import, unicode_literals
 
 import numpy as np
-import sys
 
 from unittest import TestCase
-from sklearn.utils import estimator_checks
 
 from pyscm._scm_utility import find_max
 from pyscm.scm import SetCoveringMachineClassifier
-
-
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
 
 
 class _TrackingSCM(SetCoveringMachineClassifier):
@@ -43,8 +37,8 @@ class UtilityTests(TestCase):
         """
         Dummy test #1
         """
-        X = np.array([[1, 2, 2, 2, 3, 4]], dtype=np.double).reshape(-1, 1).copy()
-        y = np.array([0, 1, 0, 1, 1, 1], dtype=np.intp)
+        X = np.array([[1, 2, 2, 2, 3, 4]], dtype=np.uint8).reshape(-1, 1).copy()
+        y = np.array([0, 1, 0, 1, 1, 1], dtype=np.uint8)
         p = 1
         Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
         (
@@ -54,7 +48,7 @@ class UtilityTests(TestCase):
             best_kinds,
             best_N,
             best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(1))
+        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
         np.testing.assert_almost_equal(actual=best_utility, desired=1.0)
         np.testing.assert_almost_equal(actual=best_feat_idx, desired=[0])
         np.testing.assert_almost_equal(actual=best_thresholds, desired=[1])
@@ -64,8 +58,8 @@ class UtilityTests(TestCase):
         """
         Test that hyperparameter p works
         """
-        X = np.array([[1, 2, 2, 2, 3, 4]], dtype=np.double).reshape(-1, 1).copy()
-        y = np.array([0, 1, 0, 1, 1, 1], dtype=np.intp)
+        X = np.array([[1, 2, 2, 2, 3, 4]], dtype=np.uint8).reshape(-1, 1).copy()
+        y = np.array([0, 1, 0, 1, 1, 1], dtype=np.uint8)
         Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
         p = 0.5
         (
@@ -75,7 +69,7 @@ class UtilityTests(TestCase):
             best_kinds,
             best_N,
             best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(1))
+        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
 
         np.testing.assert_almost_equal(actual=best_utility, desired=1.0)
         np.testing.assert_almost_equal(actual=best_feat_idx, desired=[0, 0])
@@ -84,55 +78,10 @@ class UtilityTests(TestCase):
 
     def test_3(self):
         """
-        Test that feature_weights works
-        """
-        X = np.array([[1, 1], [1, 0]], dtype=np.double)
-        y = np.array([0, 1], dtype=np.intp)
-        Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
-        p = 1.0
-
-        # Equal weights, feat 1 should be the best with utility 1
-        (
-            best_utility,
-            best_feat_idx,
-            best_thresholds,
-            best_kinds,
-            best_N,
-            best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(X.shape[1]))
-        np.testing.assert_almost_equal(actual=best_utility, desired=1)
-        np.testing.assert_almost_equal(actual=best_feat_idx, desired=[1])
-
-        # Double weight for feat 1, should be the best with utility 2
-        (
-            best_utility,
-            best_feat_idx,
-            best_thresholds,
-            best_kinds,
-            best_N,
-            best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.array([1.0, 2.0]))
-        np.testing.assert_almost_equal(actual=best_utility, desired=2)
-        np.testing.assert_almost_equal(actual=best_feat_idx, desired=[1])
-
-        # 10 times the weight for feat 1, should be the best with utility 10
-        (
-            best_utility,
-            best_feat_idx,
-            best_thresholds,
-            best_kinds,
-            best_N,
-            best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.array([1.0, 10.0]))
-        np.testing.assert_almost_equal(actual=best_utility, desired=10)
-        np.testing.assert_almost_equal(actual=best_feat_idx, desired=[1])
-
-    def test_4(self):
-        """
         Test that example_idx works
         """
-        X = np.array([[1, 1], [0, 0], [1, 0]], dtype=np.double)
-        y = np.array([0, 1, 1], dtype=np.intp)
+        X = np.array([[1, 1], [0, 0], [1, 0]], dtype=np.uint8)
+        y = np.array([0, 1, 1], dtype=np.uint8)
         Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
         p = 1.0
 
@@ -144,7 +93,7 @@ class UtilityTests(TestCase):
             best_kinds,
             best_N,
             best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(X.shape[1]))
+        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
         np.testing.assert_almost_equal(actual=best_feat_idx, desired=[1])
 
         # If example 3 is included, the best feature is feat1
@@ -155,27 +104,27 @@ class UtilityTests(TestCase):
             best_kinds,
             best_N,
             best_P_bar,
-        ) = find_max(p, X, y, Xas, np.array([1, 2], dtype=np.intp), np.ones(X.shape[1]))
+        ) = find_max(p, X, y, Xas, np.array([1, 2], dtype=np.intp))
         np.testing.assert_almost_equal(actual=best_feat_idx, desired=[0, 1])
 
-    def test_5(self):
+    def test_4(self):
         """
         Test that solver return accurate equivalent rules
         """
         X = np.array(
             [
-                [1, 1, 0.5, 1],
-                [2, 1, 0.5, 1],
-                [2, 1, 0.5, 1],
-                [3, 1, 1.7, 0],
-                [4, 1, 1.7, 0],
-                [5, 1, 1.7, 0],
-                [6, 1, 1.7, 0],
-                [7, 1, 1.7, 0],
+                [1, 1, 5, 1],
+                [2, 1, 5, 1],
+                [2, 1, 5, 1],
+                [3, 1, 17, 0],
+                [4, 1, 17, 0],
+                [5, 1, 17, 0],
+                [6, 1, 17, 0],
+                [7, 1, 17, 0],
             ],
-            dtype=np.double,
+            dtype=np.uint8,
         )
-        y = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.intp)
+        y = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.uint8)
         Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
         p = 1.0
 
@@ -186,30 +135,30 @@ class UtilityTests(TestCase):
             best_kinds,
             best_N,
             best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(X.shape[1]))
+        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
         np.testing.assert_almost_equal(actual=best_utility, desired=3.0)
         np.testing.assert_almost_equal(actual=best_feat_idx, desired=[0, 2, 3])
-        np.testing.assert_almost_equal(actual=best_thresholds, desired=[2.0, 0.5, 0.0])
+        np.testing.assert_almost_equal(actual=best_thresholds, desired=[2, 5, 0])
         np.testing.assert_almost_equal(actual=best_kinds, desired=[0, 0, 1])
 
-    def test_6(self):
+    def test_5(self):
         """
         Test that solver return accurate N and P_bar
         """
         X = np.array(
             [
-                [0, 0.5, 0],
-                [0, 1.7, 0],
-                [1, 0.5, 0],
-                [0, 1.7, 0],
-                [1, 0.5, 0],
-                [1, 1.7, 0],
-                [1, 1.7, 0],
-                [1, 1.7, 0],
+                [0, 5, 0],
+                [0, 17, 0],
+                [1, 5, 0],
+                [0, 17, 0],
+                [1, 5, 0],
+                [1, 17, 0],
+                [1, 17, 0],
+                [1, 17, 0],
             ],
-            dtype=np.double,
+            dtype=np.uint8,
         )
-        y = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.intp)
+        y = np.array([0, 0, 0, 1, 1, 1, 1, 1], dtype=np.uint8)
         Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
         p = 1.0
 
@@ -220,15 +169,15 @@ class UtilityTests(TestCase):
             best_kinds,
             best_N,
             best_P_bar,
-        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp), np.ones(X.shape[1]))
+        ) = find_max(p, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
         np.testing.assert_almost_equal(actual=best_N, desired=[2, 2])
         np.testing.assert_almost_equal(actual=best_P_bar, desired=[1, 1])
 
 
-    def test_direct_call_without_feature_weights(self):
-        """Direct extension call should support default feature_weights=None."""
-        X = np.array([[1.0], [2.0], [3.0]], dtype=np.double)
-        y = np.array([0, 1, 1], dtype=np.intp)
+    def test_direct_call_find_max_signature(self):
+        """Direct extension call should support the strict uint8/int64 signature."""
+        X = np.array([[1], [2], [3]], dtype=np.uint8)
+        y = np.array([0, 1, 1], dtype=np.uint8)
         Xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
 
         result = find_max(1.0, X, y, Xas, np.arange(X.shape[0], dtype=np.intp))
@@ -238,8 +187,8 @@ class UtilityTests(TestCase):
 
     def test_estimator_fit_still_works(self):
         """High-level estimator fit path should still work."""
-        X = np.array([[0.0], [1.0], [2.0], [3.0]], dtype=np.double)
-        y = np.array([0, 0, 1, 1], dtype=np.intp)
+        X = np.array([[0], [1], [2], [3]], dtype=np.uint8)
+        y = np.array([0, 0, 1, 1], dtype=np.uint8)
 
         model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
         model.fit(X, y)
@@ -247,9 +196,9 @@ class UtilityTests(TestCase):
         self.assertGreaterEqual(len(model.model_), 1)
 
     def test_estimator_rejects_utility_feature_weights_fit_param(self):
-        """Estimator no longer accepts utility__feature_weights fit param."""
-        X = np.array([[0.0], [1.0], [2.0], [3.0]], dtype=np.double)
-        y = np.array([0, 0, 1, 1], dtype=np.intp)
+        """Estimator continues rejecting deprecated utility__* fit params."""
+        X = np.array([[0], [1], [2], [3]], dtype=np.uint8)
+        y = np.array([0, 0, 1, 1], dtype=np.uint8)
         model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
 
         with self.assertRaisesRegex(ValueError, r"utility__\* fit parameters"):
@@ -260,16 +209,16 @@ class UtilityTests(TestCase):
         """fit should avoid per-iteration copies of full training arrays."""
         X = np.array(
             [
-                [0.0, 0.0],
-                [0.0, 1.0],
-                [1.0, 0.0],
-                [1.0, 1.0],
-                [2.0, 0.0],
-                [2.0, 1.0],
+                [0, 0],
+                [0, 1],
+                [1, 0],
+                [1, 1],
+                [2, 0],
+                [2, 1],
             ],
-            dtype=np.double,
+            dtype=np.uint8,
         )
-        y = np.array([0, 0, 1, 1, 0, 1], dtype=np.intp)
+        y = np.array([0, 0, 1, 1, 0, 1], dtype=np.uint8)
 
         model = _TrackingSCM(max_rules=3, random_state=0)
         model.fit(X, y)
@@ -279,16 +228,15 @@ class UtilityTests(TestCase):
         self.assertEqual(len({call[1] for call in model._fit_call_ids}), 1)
         self.assertEqual(len({call[2] for call in model._fit_call_ids}), 1)
 
-    def test_find_max_accepts_non_contiguous_inputs(self):
-        """Extension should continue to accept non C-contiguous and non-int64 inputs."""
-        X = np.asfortranarray(np.array([[1.0], [2.0], [3.0], [4.0]], dtype=np.float32))
-        y = np.array([0, 1, 1, 1], dtype=np.int32)
-        Xas = np.asfortranarray(np.argsort(X, axis=0).T.astype(np.int32, copy=False))
-        example_idx = np.array([0, 1, 2, 3], dtype=np.int32)
+    def test_find_max_rejects_non_contiguous_inputs(self):
+        """Extension should reject non C-contiguous arrays instead of copying."""
+        X = np.asfortranarray(np.array([[1], [2], [3], [4]], dtype=np.uint8))
+        y = np.array([0, 1, 1, 1], dtype=np.uint8)
+        Xas = np.asfortranarray(np.argsort(X, axis=0).T.astype(np.intp, copy=False))
+        example_idx = np.array([0, 1, 2, 3], dtype=np.intp)
 
-        result = find_max(1.0, X, y, Xas, example_idx)
-
-        self.assertEqual(len(result), 6)
+        with self.assertRaises(TypeError):
+            find_max(1.0, X, y, Xas, example_idx)
 
     def test_random_data(self):
         """
@@ -296,56 +244,62 @@ class UtilityTests(TestCase):
         """
         n_tests = 10  # 10000
 
-        # Using rounding generates cases with equal feature values for examples
-        for n_decimals in range(3):
+        # The more examples, the more likely we are to have equal feature values
+        for n_examples in [10, 100, 1000]:
 
-            # The more examples, the more likely we are to have equal feature values
-            for n_examples in [10, 100, 1000]:
+            # Do this a few times for each configuration
+            for _ in range(n_tests):
+                p = max(0, np.random.rand() * 100.0)
+                x = np.random.randint(0, 6, size=(n_examples, 1), dtype=np.uint8)
+                xas = np.ascontiguousarray(np.argsort(x, axis=0).T, dtype=np.intp)
+                y = np.random.randint(0, 2, n_examples, dtype=np.uint8)
+                thresholds = np.unique(x)
 
-                # Do this a few times for each configuration
-                for _ in range(n_tests):
-                    p = max(0, np.random.rand() * 100.0)
-                    x = (
-                        (np.random.rand(n_examples) * 5.0)
-                        .round(n_decimals)
-                        .reshape(-1, 1)
-                        .copy()
+                # Use the solver to find the solution
+                (
+                    solver_best_utility,
+                    solver_best_feat_idx,
+                    solver_best_thresholds,
+                    solver_best_kinds,
+                    solver_best_N,
+                    solver_best_P_bar,
+                ) = find_max(p, x, y, xas, np.arange(n_examples, dtype=np.intp))
+
+                # Less equal rule utilities
+                le_rule_utilities = []
+                for t in thresholds:
+                    rule_classifications = (x <= t).reshape(
+                        -1,
                     )
-                    xas = np.ascontiguousarray(np.argsort(x, axis=0).T, dtype=np.intp)
-                    y = np.random.randint(0, 2, n_examples, dtype=np.intp)
-                    thresholds = np.unique(x)
+                    N = (~rule_classifications[y == 0]).sum()
+                    P_bar = (~rule_classifications[y == 1]).sum()
+                    le_rule_utilities.append(N - p * P_bar)
 
-                    # Use the solver to find the solution
-                    (
-                        solver_best_utility,
-                        solver_best_feat_idx,
-                        solver_best_thresholds,
-                        solver_best_kinds,
-                        solver_best_N,
-                        solver_best_P_bar,
-                    ) = find_max(p, x, y, xas, np.arange(n_examples, dtype=np.intp))
-
-                    # Less equal rule utilities
-                    le_rule_utilities = []
-                    for t in thresholds:
-                        rule_classifications = (x <= t).reshape(
-                            -1,
-                        )
-                        N = (~rule_classifications[y == 0]).sum()
-                        P_bar = (~rule_classifications[y == 1]).sum()
-                        le_rule_utilities.append(N - p * P_bar)
-
-                    # Greater rule utilities
-                    g_rule_utilities = []
-                    for t in thresholds:
-                        rule_classifications = (x > t).reshape(
-                            -1,
-                        )
-                        N = 1.0 * (~rule_classifications[y == 0]).sum()
-                        P_bar = 1.0 * (~rule_classifications[y == 1]).sum()
-                        g_rule_utilities.append(N - p * P_bar)
-
-                    np.testing.assert_almost_equal(
-                        actual=solver_best_utility,
-                        desired=max(max(le_rule_utilities), max(g_rule_utilities)),
+                # Greater rule utilities
+                g_rule_utilities = []
+                for t in thresholds:
+                    rule_classifications = (x > t).reshape(
+                        -1,
                     )
+                    N = (~rule_classifications[y == 0]).sum()
+                    P_bar = (~rule_classifications[y == 1]).sum()
+                    g_rule_utilities.append(N - p * P_bar)
+
+                np.testing.assert_almost_equal(
+                    actual=solver_best_utility,
+                    desired=max(max(le_rule_utilities), max(g_rule_utilities)),
+                )
+
+    def test_fit_rejects_non_uint8_inputs(self):
+        model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
+        X = np.array([[0.0], [1.0]], dtype=np.float64)
+        y = np.array([0, 1], dtype=np.uint8)
+        with self.assertRaisesRegex(TypeError, r"X must have dtype np.uint8"):
+            model.fit(X, y)
+
+    def test_fit_rejects_non_contiguous_inputs(self):
+        model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
+        X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
+        y = np.array([0, 0, 1, 1], dtype=np.uint8)
+        with self.assertRaisesRegex(ValueError, r"X must be C-contiguous"):
+            model.fit(X, y)

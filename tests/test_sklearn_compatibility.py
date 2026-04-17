@@ -4,7 +4,7 @@ import numpy as np
 
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import FunctionTransformer
 from unittest import TestCase
 
 from pyscm.scm import SetCoveringMachineClassifier
@@ -17,8 +17,8 @@ class SklearnCompatibilityTests(TestCase):
 
         """
         rnd = np.random.RandomState(0)
-        X = np.random.rand(100, 100)
-        y = np.random.randint(2, size=100)
+        X = np.random.randint(0, 256, size=(100, 100), dtype=np.uint8)
+        y = np.random.randint(0, 2, size=100, dtype=np.uint8)
 
         scm_param_grid = {
             "p": [0.01, 0.1, 1, 10, 100],
@@ -52,13 +52,15 @@ class SklearnCompatibilityTests(TestCase):
 
         """
         rnd = np.random.RandomState(0)
-        X = np.random.rand(10, 10)
-        y = np.random.randint(2, size=10)
+        X = np.random.randint(0, 256, size=(10, 10), dtype=np.uint8)
+        y = np.random.randint(0, 2, size=10, dtype=np.uint8)
 
         scm = SetCoveringMachineClassifier(
             model_type="conjunction", p=0, max_rules=3, random_state=rnd
         )
-        pipeline = Pipeline([("Scale", StandardScaler()), ("SCM", scm)])
+        pipeline = Pipeline(
+            [("Identity", FunctionTransformer(validate=False)), ("SCM", scm)]
+        )
         try:
             pipeline.fit(X, y)
         except Exception as e:
