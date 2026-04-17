@@ -7,7 +7,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from unittest import TestCase
 
-from ..scm import SetCoveringMachineClassifier
+from pyscm.scm import SetCoveringMachineClassifier
 
 
 class SklearnCompatibilityTests(TestCase):
