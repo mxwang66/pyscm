@@ -6,8 +6,6 @@
 #include <cstdint>
 #include <iostream>
 
-#include "double_utils.h"
-
 #define MEM_RESIZE_INCREASE_FACTOR 2
 
 class BestUtility{
@@ -16,7 +14,7 @@ private:
 public:
     double best_utility;
     std::int64_t *best_feat_idx;
-    double *best_feat_threshold;
+    uint8_t *best_feat_threshold;
     uint8_t *best_feat_kind;
     std::int64_t *best_N;
     std::int64_t *best_P_bar;
@@ -36,7 +34,7 @@ public:
         delete [] this->best_P_bar;
     }
 
-    inline void add_equivalent(std::int64_t const &feature_idx, double const &threshold, uint8_t const &kind,
+    inline void add_equivalent(std::int64_t const &feature_idx, uint8_t const &threshold, uint8_t const &kind,
                                std::int64_t const &N, std::int64_t const &P_bar);
     inline void clear();
     inline void resize(int const &memory_size);
@@ -46,7 +44,7 @@ public:
     inline bool operator ==(double const& utility);
 };
 
-inline void BestUtility::add_equivalent(std::int64_t const &feature_idx, double const &threshold, uint8_t const &kind,
+inline void BestUtility::add_equivalent(std::int64_t const &feature_idx, uint8_t const &threshold, uint8_t const &kind,
                                         std::int64_t const &N, std::int64_t const &P_bar) {
     if(this->best_n_equiv == this->mem_size){
         // We need to resize the array
@@ -66,7 +64,7 @@ inline void BestUtility::clear() {
 
 inline void BestUtility::resize(int const &memory_size) {
     std::int64_t *best_feat_idx_new = new std::int64_t[memory_size];
-    double *best_feat_threshold_new = new double[memory_size];
+    uint8_t *best_feat_threshold_new = new uint8_t[memory_size];
     uint8_t* best_feat_kind_new = new uint8_t[memory_size];
     std::int64_t *best_N_new = new std::int64_t[memory_size];
     std::int64_t *best_P_bar_new = new std::int64_t[memory_size];
@@ -103,15 +101,15 @@ inline void BestUtility::set_utility(double const &utility) {
 }
 
 inline bool BestUtility::operator>(double const &utility) {
-    return greater(this->best_utility, utility);
+    return this->best_utility > utility;
 }
 
 inline bool BestUtility::operator<(double const &utility) {
-    return less(this->best_utility, utility);
+    return this->best_utility < utility;
 }
 
 inline bool BestUtility::operator==(double const &utility) {
-    return equal(utility, this->best_utility);
+    return utility == this->best_utility;
 }
 
 #endif //CPP_EXTENSIONS_BEST_UTILITY_H

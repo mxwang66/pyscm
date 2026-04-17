@@ -9,7 +9,7 @@
  * Solver
  */
 
-void get_n_examples_by_class(const bool* example_is_included, const std::int64_t* y, const std::int64_t &n_examples,
+void get_n_examples_by_class(const bool* example_is_included, const uint8_t* y, const std::int64_t &n_examples,
                              std::int64_t &n_negative, std::int64_t &n_positive){
     for(std::int64_t i = 0; i < n_examples; i++){
         if(example_is_included[i]){
@@ -23,12 +23,12 @@ void get_n_examples_by_class(const bool* example_is_included, const std::int64_t
     }
 }
 
-void update_optimal_solution(BestUtility &best_solution, std::int64_t const &feature_idx, double const &threshold,
+void update_optimal_solution(BestUtility &best_solution, std::int64_t const &feature_idx, uint8_t const &threshold,
                              std::int64_t const &N, std::int64_t const &P_bar, double const &p,
-                             double const &feature_weight, std::int64_t const &n_negative,
+                             std::int64_t const &n_negative,
                              std::int64_t const &n_positive){
     // Get utility for x > t and check if optimal
-    double utility_0 = (static_cast<double>(N) - p * static_cast<double>(P_bar)) * feature_weight;
+    double utility_0 = static_cast<double>(N) - p * static_cast<double>(P_bar);
     if(best_solution < utility_0){
         best_solution.clear();
         best_solution.set_utility(utility_0);
@@ -40,7 +40,7 @@ void update_optimal_solution(BestUtility &best_solution, std::int64_t const &fea
     // Get utility for x <= t and check if optimal
     std::int64_t N_1 = n_negative - N;
     std::int64_t P_bar_1 = n_positive - P_bar;
-    double utility_1 = (static_cast<double>(N_1) - p * static_cast<double>(P_bar_1)) * feature_weight;
+    double utility_1 = static_cast<double>(N_1) - p * static_cast<double>(P_bar_1);
     if(best_solution < utility_1){
         best_solution.clear();
         best_solution.set_utility(utility_1);
@@ -51,11 +51,10 @@ void update_optimal_solution(BestUtility &best_solution, std::int64_t const &fea
 }
 
 int find_max(double p,
-             const double *X,
-             const std::int64_t *y,
+             const uint8_t *X,
+             const uint8_t *y,
              const std::int64_t *Xas,
              const std::int64_t *example_idx,
-             const double *feature_weights,
              std::int64_t n_examples_included,
              std::int64_t n_examples,
              std::int64_t n_features,
@@ -78,7 +77,8 @@ int find_max(double p,
 
         // For each threshold of this feature (a threshold is an example's feature value)
         std::int64_t N = 0, P_bar = 0, prev_N = 0, prev_P_bar = 0;
-        double prev_threshold = -INFINITY;
+        uint8_t prev_threshold = 0;
+        bool has_prev_threshold = false;
 
         for(std::int64_t j = 0; j < n_examples; j++){
 
@@ -89,12 +89,12 @@ int find_max(double p,
             if(example_is_included[idx]){
 
                 // Get the example's label and threshold
-                std::int64_t label = y[idx];
-                double threshold = X[idx * n_features + i];
+                uint8_t label = y[idx];
+                uint8_t threshold = X[idx * n_features + i];
 
                 // Wait for the last example with this threshold before computing the utilities
-                if(prev_threshold != -INFINITY && not_equal(threshold, prev_threshold)){
-                    update_optimal_solution(out_best_solution, i, prev_threshold, N, P_bar, p, feature_weights[i],
+                if(has_prev_threshold && threshold != prev_threshold){
+                    update_optimal_solution(out_best_solution, i, prev_threshold, N, P_bar, p,
                                             n_negative, n_positive);
                 }
 
@@ -110,10 +110,13 @@ int find_max(double p,
                 prev_N = N;
                 prev_P_bar = P_bar;
                 prev_threshold = threshold;
+                has_prev_threshold = true;
             }
         }
-        update_optimal_solution(out_best_solution, i, prev_threshold, N, P_bar, p, feature_weights[i],
-                                n_negative, n_positive);
+        if(has_prev_threshold){
+            update_optimal_solution(out_best_solution, i, prev_threshold, N, P_bar, p,
+                                    n_negative, n_positive);
+        }
     }
     delete [] example_is_included;
     return 0;

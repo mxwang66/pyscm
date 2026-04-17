@@ -24,11 +24,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "best_utility.h"
 
 int find_max(double p,
-             const double *X,
-             const std::int64_t *y,
+             const uint8_t *X,
+             const uint8_t *y,
              const std::int64_t *Xas,
              const std::int64_t *example_idx,
-             const double *feature_weights,
              std::int64_t n_examples_included, // examples that we are allowed to look at
              std::int64_t n_examples,
              std::int64_t n_features,

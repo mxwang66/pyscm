@@ -25,8 +25,6 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score
 from sklearn.utils.validation import (
-    check_X_y,
-    check_array,
     check_is_fitted,
     check_random_state,
 )
@@ -59,6 +57,39 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         for parameter, value in iteritems(parameters):
             setattr(self, parameter, value)
         return self
+
+    @staticmethod
+    def _validate_X_uint8(X):
+        if not isinstance(X, np.ndarray):
+            raise TypeError("X must be a numpy.ndarray.")
+        if X.dtype != np.uint8:
+            raise TypeError("X must have dtype np.uint8.")
+        if X.ndim != 2:
+            raise ValueError("X must be a 2D array.")
+        if not X.flags.c_contiguous:
+            raise ValueError("X must be C-contiguous.")
+        return X
+
+    def _validate_fit_inputs(self, X, y):
+        X = self._validate_X_uint8(X)
+        if not isinstance(y, np.ndarray):
+            raise TypeError("y must be a numpy.ndarray.")
+        if y.dtype != np.uint8:
+            raise TypeError("y must have dtype np.uint8.")
+        if y.ndim != 1:
+            raise ValueError("y must be a 1D array.")
+        if not y.flags.c_contiguous:
+            raise ValueError("y must be C-contiguous.")
+        if X.shape[0] != y.shape[0]:
+            raise ValueError("X and y must have the same number of rows.")
+
+        classes, total_n_ex_by_class = np.unique(y, return_counts=True)
+        if len(classes) != 2:
+            raise ValueError("y must contain two unique classes.")
+        if not np.array_equal(classes, np.array([0, 1], dtype=np.uint8)):
+            raise ValueError("y must contain only binary labels {0, 1}.")
+
+        return X, y, classes, total_n_ex_by_class
 
     def fit(self, X, y, tiebreaker=None, iteration_callback=None, **fit_params):
         """
@@ -118,13 +149,9 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
 
         # Validate the input data
         logging.debug("Validating the input data")
-        X, y = check_X_y(X, y)
-        X = np.asarray(X, dtype=np.double, order="C")
-        self.classes_, y, total_n_ex_by_class = np.unique(
-            y, return_inverse=True, return_counts=True
+        X, y, self.classes_, total_n_ex_by_class = self._validate_fit_inputs(
+            X, y
         )
-        if len(self.classes_) != 2:
-            raise ValueError("y must contain two unique classes.")
         logging.debug(
             "The data contains {0:d} examples. Negative class is {1!s} (n: {2:d}) and positive class is {3!s} (n: {4:d}).".format(
                 len(y),
@@ -138,10 +165,9 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         # Invert the classes if we are learning a disjunction
         logging.debug("Preprocessing example labels")
         pos_ex_idx, neg_ex_idx = self._get_example_idx_by_class(y)
-        y_binary = np.zeros(len(y), dtype=np.intp)
+        y_binary = np.zeros(len(y), dtype=np.uint8)
         y_binary[pos_ex_idx] = 1
         y_binary[neg_ex_idx] = 0
-        y_binary = np.ascontiguousarray(y_binary, dtype=np.intp)
 
         # Presort all the features
         logging.debug("Presorting all features")
@@ -245,7 +271,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
 
         """
         check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
-        X = check_array(X)
+        X = self._validate_X_uint8(X)
         return self.classes_[self.model_.predict(X)]
 
     def predict_proba(self, X):
@@ -268,7 +294,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
             RuntimeWarning,
         )
         check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
-        X = check_array(X)
+        X = self._validate_X_uint8(X)
         pos_proba = self.classes_[self.model_.predict(X)]
         proba = np.empty((X.shape[0], 2), dtype=np.result_type(pos_proba, np.float64))
         proba[:, 1] = pos_proba
@@ -306,7 +332,13 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
 
         """
         check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
-        X, y = check_X_y(X, y)
+        X = self._validate_X_uint8(X)
+        if not isinstance(y, np.ndarray):
+            raise TypeError("y must be a numpy.ndarray.")
+        if y.ndim != 1:
+            raise ValueError("y must be a 1D array.")
+        if X.shape[0] != y.shape[0]:
+            raise ValueError("X and y must have the same number of rows.")
         return accuracy_score(y_true=y, y_pred=self.predict(X))
 
     def _append_conjunction_model(self, new_rule):
@@ -367,5 +399,5 @@ class SetCoveringMachineClassifier(BaseSetCoveringMachine):
             X,
             y,
             X_argsort_by_feature_T,
-            np.asarray(example_idx, dtype=np.intp, order="C"),
+            example_idx,
         )

@@ -36,7 +36,7 @@ class BaseRule(object):
 
         Parameters:
         -----------
-        X: array-like, shape=(n_examples, n_features), dtype=np.float
+        X: array-like, shape=(n_examples, n_features), dtype=np.uint8
             The feature vectors of examples to classify.
 
         Returns:
@@ -74,7 +74,7 @@ class DecisionStump(BaseRule):
     -----------
     feature_idx: uint
         The index of the feature
-    threshold: float
+    threshold: uint8
         The threshold at which the outcome of the rule changes
     kind: str, default="greater"
         The case in which the rule returns 1, either "greater" or "less_equal".
@@ -93,7 +93,7 @@ class DecisionStump(BaseRule):
 
         Parameters:
         -----------
-        X: array-like, shape=(n_examples, n_features), dtype=np.float
+        X: array-like, shape=(n_examples, n_features), dtype=np.uint8
             The feature vectors of examples to classify.
 
         Returns:
@@ -125,6 +125,6 @@ class DecisionStump(BaseRule):
         )
 
     def __str__(self):
-        return "X[{0:d}] {1!s} {2:.3f}".format(
+        return "X[{0:d}] {1!s} {2:d}".format(
             self.feature_idx, ">" if self.kind == "greater" else "<=", self.threshold
         )
