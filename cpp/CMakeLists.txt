@@ -1,3 +1,6 @@
+cmake_minimum_required(VERSION 3.18)
+project(pyscm LANGUAGES CXX)
+
 find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
 find_package(pybind11 CONFIG REQUIRED)
 
