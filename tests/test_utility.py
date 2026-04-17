@@ -6,8 +6,8 @@ import sys
 from unittest import TestCase
 from sklearn.utils import estimator_checks
 
-from .._scm_utility import find_max
-from ..scm import SetCoveringMachineClassifier
+from pyscm._scm_utility import find_max
+from pyscm.scm import SetCoveringMachineClassifier
 
 
 def eprint(*args, **kwargs):

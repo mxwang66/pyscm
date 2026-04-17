@@ -1,3 +1,49 @@
 [build-system]
-requires = ["setuptools", "wheel", "pybind11>=2.10"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.10", "pybind11>=2.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyscm"
+version = "1.1.2"
+description = "The Set Covering Machine algorithm"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE.md" }
+authors = [
+  { name = "Alexandre Drouin", email = "aldro61@gmail.com" }
+]
+maintainers = [
+  { name = "Alexandre Drouin", email = "aldro61@gmail.com" }
+]
+keywords = ["machine-learning", "classification", "set-covering-machine", "rule-based-models"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Programming Language :: Python",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Operating System :: OS Independent",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+dependencies = [
+  "numpy>=2",
+  "scikit-learn",
+  "six"
+]
+
+[project.urls]
+Homepage = "https://github.com/aldro61/pyscm"
+
+[tool.scikit-build]
+cmake.source-dir = "cpp"
+wheel.packages = ["src/pyscm"]
+sdist.include = [
+  "src/pyscm/**",
+  "cpp/**",
+  "tests/**",
+  "examples/**",
+  "README.md",
+  "LICENSE.md"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
