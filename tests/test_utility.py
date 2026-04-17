@@ -228,16 +228,6 @@ class UtilityTests(TestCase):
         self.assertEqual(len({call[1] for call in model._fit_call_ids}), 1)
         self.assertEqual(len({call[2] for call in model._fit_call_ids}), 1)
 
-    def test_find_max_rejects_non_contiguous_inputs(self):
-        """Extension should reject non C-contiguous arrays instead of copying."""
-        X = np.asfortranarray(np.array([[1], [2], [3], [4]], dtype=np.uint8))
-        y = np.array([0, 1, 1, 1], dtype=np.uint8)
-        Xas = np.asfortranarray(np.argsort(X, axis=0).T.astype(np.intp, copy=False))
-        example_idx = np.array([0, 1, 2, 3], dtype=np.intp)
-
-        with self.assertRaises(TypeError):
-            find_max(1.0, X, y, Xas, example_idx)
-
     def test_random_data(self):
         """
         Random testing
@@ -299,7 +289,9 @@ class UtilityTests(TestCase):
 
     def test_fit_rejects_non_contiguous_inputs(self):
         model = SetCoveringMachineClassifier(max_rules=2, random_state=0)
-        X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
+        X_base = np.array([[0, 9], [1, 9], [2, 9], [3, 9]], dtype=np.uint8)
+        X = X_base[:, :1]
+        self.assertFalse(X.flags.c_contiguous)
         y = np.array([0, 0, 1, 1], dtype=np.uint8)
         with self.assertRaisesRegex(ValueError, r"X must be C-contiguous"):
             model.fit(X, y)

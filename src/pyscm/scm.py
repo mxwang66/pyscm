@@ -83,15 +83,13 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         if X.shape[0] != y.shape[0]:
             raise ValueError("X and y must have the same number of rows.")
 
-        classes, y_inverse, total_n_ex_by_class = np.unique(
-            y, return_inverse=True, return_counts=True
-        )
+        classes, total_n_ex_by_class = np.unique(y, return_counts=True)
         if len(classes) != 2:
             raise ValueError("y must contain two unique classes.")
         if not np.array_equal(classes, np.array([0, 1], dtype=np.uint8)):
             raise ValueError("y must contain only binary labels {0, 1}.")
 
-        return X, y, classes, y_inverse.astype(np.uint8, copy=False), total_n_ex_by_class
+        return X, y, classes, total_n_ex_by_class
 
     def fit(self, X, y, tiebreaker=None, iteration_callback=None, **fit_params):
         """
@@ -151,7 +149,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
 
         # Validate the input data
         logging.debug("Validating the input data")
-        X, y, self.classes_, y, total_n_ex_by_class = self._validate_fit_inputs(
+        X, y, self.classes_, total_n_ex_by_class = self._validate_fit_inputs(
             X, y
         )
         logging.debug(

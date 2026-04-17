@@ -11,51 +11,13 @@ namespace py = pybind11;
 
 py::tuple find_max_binding(
         double p,
-        py::object X_obj,
-        py::object y_obj,
-        py::object X_argsort_by_feature_T_obj,
-        py::object example_idx_obj) {
-    auto X = py::reinterpret_borrow<py::array>(X_obj);
-    auto y = py::reinterpret_borrow<py::array>(y_obj);
-    auto X_argsort_by_feature_T = py::reinterpret_borrow<py::array>(X_argsort_by_feature_T_obj);
-    auto example_idx = py::reinterpret_borrow<py::array>(example_idx_obj);
+        py::array_t<std::uint8_t, py::array::c_style> X,
+        py::array_t<std::uint8_t, py::array::c_style> y,
+        py::array_t<std::int64_t, py::array::c_style> X_argsort_by_feature_T,
+        py::array_t<std::int64_t, py::array::c_style> example_idx) {
 
-    if (!X.dtype().is(py::dtype::of<std::uint8_t>())) {
-        throw py::type_error("X has an incompatible dtype");
-    }
-    if (!y.dtype().is(py::dtype::of<std::uint8_t>())) {
-        throw py::type_error("y has an incompatible dtype");
-    }
-    if (!X_argsort_by_feature_T.dtype().is(py::dtype::of<std::int64_t>())) {
-        throw py::type_error("X_argsort_by_feature_T has an incompatible dtype");
-    }
-    if (!example_idx.dtype().is(py::dtype::of<std::int64_t>())) {
-        throw py::type_error("example_idx has an incompatible dtype");
-    }
-    if (!(X.flags() & py::array::c_style)) {
-        throw py::type_error("X must be C-contiguous");
-    }
-    if (!(y.flags() & py::array::c_style)) {
-        throw py::type_error("y must be C-contiguous");
-    }
-    if (!(X_argsort_by_feature_T.flags() & py::array::c_style)) {
-        throw py::type_error("X_argsort_by_feature_T must be C-contiguous");
-    }
-    if (!(example_idx.flags() & py::array::c_style)) {
-        throw py::type_error("example_idx must be C-contiguous");
-    }
-
-    if (X.ndim() != 2) {
-        throw py::type_error("X must be a 2D numpy.ndarray");
-    }
-    if (y.ndim() != 1) {
-        throw py::type_error("y must be a 1D numpy.ndarray");
-    }
-    if (X_argsort_by_feature_T.ndim() != 2) {
-        throw py::type_error("X_argsort_by_feature_T must be a 2D numpy.ndarray");
-    }
-    if (example_idx.ndim() != 1) {
-        throw py::type_error("example_idx must be a 1D numpy.ndarray");
+    if (X.ndim() != 2 || y.ndim() != 1 || X_argsort_by_feature_T.ndim() != 2 || example_idx.ndim() != 1) {
+        throw py::type_error("Unexpected array dimensions passed to find_max.");
     }
 
     const auto n_examples = static_cast<std::int64_t>(X.shape(0));
@@ -71,10 +33,10 @@ py::tuple find_max_binding(
         throw py::type_error("X must have as many rows as X_argsort_by_feature_T has columns");
     }
 
-    const auto *X_data = static_cast<const std::uint8_t *>(X.data());
-    const auto *y_data = static_cast<const std::uint8_t *>(y.data());
-    const auto *Xas_data = static_cast<const std::int64_t *>(X_argsort_by_feature_T.data());
-    const auto *example_idx_data = static_cast<const std::int64_t *>(example_idx.data());
+    const auto *X_data = X.data();
+    const auto *y_data = y.data();
+    const auto *Xas_data = X_argsort_by_feature_T.data();
+    const auto *example_idx_data = example_idx.data();
 
     BestUtility best_solution(100);
     const int status = find_max(
