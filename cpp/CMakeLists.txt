@@ -9,7 +9,7 @@ pybind11_add_module(_scm_utility MODULE
   src/solver.cpp
 )
 
-target_compile_features(_scm_utility PRIVATE cxx_std_14)
+target_compile_features(_scm_utility PRIVATE cxx_std_17)
 target_include_directories(_scm_utility PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 install(TARGETS _scm_utility
