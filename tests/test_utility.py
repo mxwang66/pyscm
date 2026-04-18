@@ -6,7 +6,7 @@ from unittest.mock import patch
 import numpy as np
 
 from pyscm._scm_utility import find_max
-from pyscm.scm import DecisionStump, fit_scm, predict_scm
+from pyscm.scm import SCMRule, fit_scm, predict_scm
 
 
 class UtilityTests(TestCase):
@@ -26,15 +26,44 @@ class UtilityTests(TestCase):
             np.array([[1, 2, 2, 2, 3, 4]], dtype=np.uint8).reshape(-1, 1).copy()
         )
         y = np.array([0, 1, 0, 1, 1, 1], dtype=np.uint8)
-        xas = np.ascontiguousarray(np.argsort(X, axis=0).T, dtype=np.intp)
 
         best_utility, best_feat_idx, best_thresholds, best_kinds, _, _ = find_max(
-            1.0, X.T, y, xas, np.arange(X.shape[0], dtype=np.intp)
+            1.0, X.T, y, np.arange(X.shape[0], dtype=np.intp)
         )
         np.testing.assert_almost_equal(actual=best_utility, desired=1.0)
         np.testing.assert_almost_equal(actual=best_feat_idx, desired=[0])
         np.testing.assert_almost_equal(actual=best_thresholds, desired=[1])
         np.testing.assert_almost_equal(actual=best_kinds, desired=[0])
+
+    def test_find_max_respects_subset_example_idx(self):
+        X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
+        y = np.array([0, 1, 0, 1], dtype=np.uint8)
+        example_idx = np.array([1, 2], dtype=np.intp)
+
+        best_utility, best_feat_idx, best_thresholds, best_kinds, best_N, best_P_bar = find_max(
+            1.0, X.T, y, example_idx
+        )
+
+        np.testing.assert_array_equal(best_feat_idx, np.array([0], dtype=np.int64))
+        np.testing.assert_array_equal(best_thresholds, np.array([1], dtype=np.uint8))
+        np.testing.assert_array_equal(best_kinds, np.array([1], dtype=np.int64))
+        np.testing.assert_array_equal(best_N, np.array([1], dtype=np.int64))
+        np.testing.assert_array_equal(best_P_bar, np.array([0], dtype=np.int64))
+        np.testing.assert_almost_equal(best_utility, 1.0)
+
+    def test_find_max_groups_duplicate_threshold_values(self):
+        X = np.asfortranarray(np.array([[2], [2], [2], [3]], dtype=np.uint8))
+        y = np.array([0, 1, 0, 1], dtype=np.uint8)
+        example_idx = np.arange(X.shape[0], dtype=np.intp)
+
+        best_utility, best_feat_idx, best_thresholds, best_kinds, _, _ = find_max(
+            1.0, X.T, y, example_idx
+        )
+
+        np.testing.assert_almost_equal(best_utility, 1.0)
+        np.testing.assert_array_equal(best_feat_idx, np.array([0], dtype=np.int64))
+        np.testing.assert_array_equal(best_thresholds, np.array([2], dtype=np.uint8))
+        np.testing.assert_array_equal(best_kinds, np.array([0], dtype=np.int64))
 
     def test_fit_predict_conjunction(self):
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
@@ -95,9 +124,9 @@ class UtilityTests(TestCase):
         with self.assertRaisesRegex(ValueError, r"both boolean labels"):
             fit_scm(X, y, max_rules=2)
 
-    def test_decision_stump_classify_feature_values_matches_classify(self):
+    def test_scm_rule_classify_feature_values_matches_classify(self):
         X = np.asfortranarray(np.array([[0, 2], [1, 1], [2, 0]], dtype=np.uint8))
-        stump = DecisionStump(feature_idx=1, threshold=1, kind="greater")
+        stump = SCMRule(feature_idx=1, threshold=1, kind="greater")
 
         np.testing.assert_array_equal(
             stump.classify_feature_values(X[:, 1]),

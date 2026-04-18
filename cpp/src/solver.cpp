@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -9,16 +11,15 @@
  * Solver
  */
 
-void get_n_examples_by_class(const bool* example_is_included, const uint8_t* y, const std::int64_t &n_examples,
+void get_n_examples_by_class(const std::int64_t *example_idx, const uint8_t *y, const std::int64_t &n_examples_included,
                              std::int64_t &n_negative, std::int64_t &n_positive){
-    for(std::int64_t i = 0; i < n_examples; i++){
-        if(example_is_included[i]){
-            if(y[i] == 0){
-                n_negative ++;
-            }
-            else{
-                n_positive ++;
-            }
+    for(std::int64_t i = 0; i < n_examples_included; i++){
+        const std::int64_t idx = example_idx[i];
+        if(y[idx] == 0){
+            n_negative ++;
+        }
+        else{
+            n_positive ++;
         }
     }
 }
@@ -53,71 +54,52 @@ void update_optimal_solution(BestUtility &best_solution, std::int64_t const &fea
 int find_max(double p,
              const uint8_t *Xt,
              const uint8_t *y,
-             const std::int64_t *Xas,
              const std::int64_t *example_idx,
              std::int64_t n_examples_included,
              std::int64_t n_examples,
              std::int64_t n_features,
              BestUtility &out_best_solution){
 
-    // Make a mask that tells us which examples should be considered in the utility calculations
-    bool *example_is_included = new bool[n_examples];
-    std::fill_n(example_is_included, n_examples, false);
-
-    for(std::int64_t i = 0; i < n_examples_included; i++){
-        example_is_included[example_idx[i]] = true;
-    }
-
     // Find the number of positive and negative examples
     std::int64_t n_negative = 0, n_positive = 0;
-    get_n_examples_by_class(example_is_included, y, n_examples, n_negative, n_positive);
+    get_n_examples_by_class(example_idx, y, n_examples_included, n_negative, n_positive);
 
     // Utility calculations start
     for(std::int64_t i = 0; i < n_features; i++){
+        std::array<std::int64_t, 256> negatives_by_value{};
+        std::array<std::int64_t, 256> positives_by_value{};
+        std::array<bool, 256> value_observed{};
 
-        // For each threshold of this feature (a threshold is an example's feature value)
-        std::int64_t N = 0, P_bar = 0, prev_N = 0, prev_P_bar = 0;
-        uint8_t prev_threshold = 0;
-        bool has_prev_threshold = false;
+        for(std::int64_t j = 0; j < n_examples_included; j++){
+            const std::int64_t idx = example_idx[j];
+            const uint8_t value = Xt[i * n_examples + idx];
+            value_observed[value] = true;
 
-        for(std::int64_t j = 0; j < n_examples; j++){
-
-            // Get the index of the next example according to the sorting
-            std::int64_t idx = Xas[i * n_examples + j];
-
-            // Consider this example only if it is included in the calculations
-            if(example_is_included[idx]){
-
-                // Get the example's label and threshold
-                uint8_t label = y[idx];
-                uint8_t threshold = Xt[i * n_examples + idx];
-
-                // Wait for the last example with this threshold before computing the utilities
-                if(has_prev_threshold && threshold != prev_threshold){
-                    update_optimal_solution(out_best_solution, i, prev_threshold, N, P_bar, p,
-                                            n_negative, n_positive);
-                }
-
-                if(label == 1){
-                    P_bar = prev_P_bar + 1;
-                    N = prev_N;
-                }
-                else{
-                    P_bar = prev_P_bar;
-                    N = prev_N + 1;
-                }
-
-                prev_N = N;
-                prev_P_bar = P_bar;
-                prev_threshold = threshold;
-                has_prev_threshold = true;
+            if(y[idx] == 1){
+                positives_by_value[value] ++;
+            }
+            else{
+                negatives_by_value[value] ++;
             }
         }
-        if(has_prev_threshold){
-            update_optimal_solution(out_best_solution, i, prev_threshold, N, P_bar, p,
-                                    n_negative, n_positive);
+
+        std::int64_t cum_negatives = 0;
+        std::int64_t cum_positives = 0;
+        for(std::int64_t value = 0; value < 256; value++){
+            cum_negatives += negatives_by_value[value];
+            cum_positives += positives_by_value[value];
+
+            if(value_observed[value]){
+                update_optimal_solution(out_best_solution,
+                                        i,
+                                        static_cast<uint8_t>(value),
+                                        cum_negatives,
+                                        cum_positives,
+                                        p,
+                                        n_negative,
+                                        n_positive);
+            }
         }
     }
-    delete [] example_is_included;
     return 0;
 }

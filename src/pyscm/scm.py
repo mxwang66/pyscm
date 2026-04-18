@@ -91,7 +91,6 @@ def fit_scm(
         remaining_neg_idx = np.where(y)[0]
         y_unified = (~y).astype(np.uint8, copy=False)
 
-    perm = np.argsort(Xt, axis=1, stable=True) # stable is faster for uint8
     rules: list[SCMRule] = []
 
     while len(remaining_neg_idx) > 0 and len(rules) < max_rules:
@@ -102,7 +101,7 @@ def fit_scm(
             opti_kind,
             opti_n,
             opti_p_bar,
-        ) = find_max(p, Xt, y_unified, perm, remaining_idx)
+        ) = find_max(p, Xt, y_unified, remaining_idx)
 
         # Tiebreaker
         if len(opti_feat_idx) > 1:
