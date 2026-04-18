@@ -73,13 +73,13 @@ class SetCoveringMachineClassifier:
     def _validate_fit_inputs(
         self,
         X: NDArray[np.uint8],
-        y: NDArray[np.uint8],
-    ) -> tuple[NDArray[np.uint8], NDArray[np.uint8]]:
+        y: NDArray[np.bool_],
+    ) -> tuple[NDArray[np.uint8], NDArray[np.bool_]]:
         X = self._validate_X_uint8(X)
         if not isinstance(y, np.ndarray):
             raise TypeError("y must be a numpy.ndarray.")
-        if y.dtype != np.uint8:
-            raise TypeError("y must have dtype np.uint8.")
+        if y.dtype != np.bool_:
+            raise TypeError("y must have dtype np.bool_.")
         if y.ndim != 1:
             raise ValueError("y must be a 1D array.")
         if not y.flags.c_contiguous:
@@ -88,8 +88,8 @@ class SetCoveringMachineClassifier:
             raise ValueError("X and y must have the same number of rows.")
 
         classes = np.unique(y)
-        if not np.array_equal(classes, np.array([0, 1], dtype=np.uint8)):
-            raise ValueError("y must contain only binary labels {0, 1}.")
+        if not np.array_equal(classes, np.array([False, True], dtype=np.bool_)):
+            raise ValueError("y must contain both boolean labels {False, True}.")
 
         return X, y
 
@@ -97,7 +97,7 @@ class SetCoveringMachineClassifier:
         if not hasattr(self, "model_"):
             raise RuntimeError("SetCoveringMachineClassifier must be fitted before calling predict().")
 
-    def fit(self, X: NDArray[np.uint8], y: NDArray[np.uint8]) -> "SetCoveringMachineClassifier":
+    def fit(self, X: NDArray[np.uint8], y: NDArray[np.bool_]) -> "SetCoveringMachineClassifier":
         if self.model_type not in {"conjunction", "disjunction"}:
             raise ValueError("Unsupported model type.")
 
@@ -105,15 +105,17 @@ class SetCoveringMachineClassifier:
         Xt = X.T
 
         if self.model_type == "conjunction":
-            pos_ex_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
-            neg_ex_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
+            pos_ex_idx = np.where(y)[0].astype(np.intp, copy=False)
+            neg_ex_idx = np.where(~y)[0].astype(np.intp, copy=False)
         else:
             # Learn a conjunction on inverted labels and invert added rules.
-            pos_ex_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
-            neg_ex_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
+            pos_ex_idx = np.where(~y)[0].astype(np.intp, copy=False)
+            neg_ex_idx = np.where(y)[0].astype(np.intp, copy=False)
 
-        y_unified = np.zeros(len(y), dtype=np.uint8)
-        y_unified[pos_ex_idx] = 1
+        y_unified = np.zeros(len(y), dtype=np.bool_)
+        y_unified[pos_ex_idx] = True
+        # Keep labels as bool in Python logic and reinterpret as uint8 at the C++ boundary.
+        y_unified_uint8 = y_unified.view(np.uint8)
 
         x_argsort_by_feature_t = np.argsort(X.T, axis=1)
         self.model_ = _RuleListModel(self.model_type)
@@ -129,7 +131,7 @@ class SetCoveringMachineClassifier:
                 opti_kind,
                 opti_n,
                 opti_p_bar,
-            ) = find_max(self.p, Xt, y_unified, x_argsort_by_feature_t, remaining_example_idx)
+            ) = find_max(self.p, Xt, y_unified_uint8, x_argsort_by_feature_t, remaining_example_idx)
 
             if len(opti_feat_idx) > 1:
                 training_risk_decrease = (1.0 * opti_n) - opti_p_bar
