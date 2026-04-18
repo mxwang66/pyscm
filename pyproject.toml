@@ -7,7 +7,7 @@ name = "pyscm"
 version = "1.1.2"
 description = "The Set Covering Machine algorithm"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE.md" }
 authors = [
   { name = "Alexandre Drouin", email = "aldro61@gmail.com" }

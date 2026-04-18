@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 from ._scm_utility import find_max
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SCMRule:
     feature_idx: int
     threshold: int
@@ -33,10 +33,10 @@ class SCMRule:
         return f"X[{self.feature_idx}] {operator} {self.threshold}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SCMModel:
     model_type: str
-    rules: list[SCMRule]
+    rules: tuple[SCMRule]
 
 
 def _validate_X(X: NDArray[np.uint8]) -> None:
@@ -87,7 +87,7 @@ def fit_scm(
         remaining_neg_idx = np.where(~y)[0]
         y_unified = y.astype(np.uint8, copy=False)
     else:
-        # Learn a conjunction on inverted labels and invert added rules.
+        # Learn a conjunction on inverted labels and inverted rules.
         remaining_neg_idx = np.where(y)[0]
         y_unified = (~y).astype(np.uint8, copy=False)
 
@@ -116,10 +116,7 @@ def fit_scm(
             threshold=int(opti_threshold[keep_idx]),
             kind="greater" if int(opti_kind[keep_idx]) == 0 else "less_equal",
         )
-        # For disjunction, training is done in conjunction-space on inverted labels:
-        # keep filtering with the training-space rule, but store its inverse in the final model.
-        model_rule = training_rule if model_type == "conjunction" else training_rule.inverse()
-        rules.append(model_rule)
+        rules.append(training_rule)
 
         logging.debug("The best rule has utility %.3f", opti_utility)
 
@@ -131,7 +128,11 @@ def fit_scm(
             training_rule.classify_feature_values(feature_values[remaining_neg_idx])
         ]
 
-    return SCMModel(model_type=model_type, rules=rules)
+    # Invert rules for disjunction
+    if model_type == "disjunction":
+        rules = list(r.inverse() for r in rules)
+
+    return SCMModel(model_type=model_type, rules=tuple(rules))
 
 
 def predict_scm(model: SCMModel, X: NDArray[np.uint8]) -> NDArray[np.bool_]:
