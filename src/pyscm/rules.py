@@ -102,11 +102,25 @@ class DecisionStump(BaseRule):
             The outcome of the rule (True or False) for each example.
 
         """
+        return self.classify_feature_values(X[:, self.feature_idx])
+
+    def classify_feature_values(self, feature_values):
+        """
+        Classifies examples using a 1D vector of this stump's feature values.
+
+        Parameters:
+        -----------
+        feature_values: array-like, shape=(n_examples,), dtype=np.uint8
+            Values of the stump feature for each example.
+
+        Returns:
+        --------
+        classifications: array-like, shape=(n_examples,), dtype=bool
+            The outcome of the rule (True or False) for each example.
+        """
         if self.kind == "greater":
-            c = X[:, self.feature_idx] > self.threshold
-        else:
-            c = X[:, self.feature_idx] <= self.threshold
-        return c
+            return feature_values > self.threshold
+        return feature_values <= self.threshold
 
     def inverse(self):
         """
