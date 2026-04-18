@@ -1,6 +1,7 @@
 import importlib
 import sys
 from unittest import TestCase
+from unittest.mock import patch
 
 import numpy as np
 
@@ -10,6 +11,17 @@ from pyscm.scm import SetCoveringMachineClassifier
 
 
 class UtilityTests(TestCase):
+    @staticmethod
+    def _mock_find_max_rule_greater_than_one(*_args, **_kwargs):
+        return (
+            1.0,
+            np.array([0], dtype=np.int64),
+            np.array([1], dtype=np.uint8),
+            np.array([0], dtype=np.uint8),  # "greater"
+            np.array([1], dtype=np.int64),
+            np.array([0], dtype=np.int64),
+        )
+
     def test_find_max_basic(self):
         X = np.asfortranarray(
             np.array([[1, 2, 2, 2, 3, 4]], dtype=np.uint8).reshape(-1, 1).copy()
@@ -107,3 +119,38 @@ class UtilityTests(TestCase):
         loaded = set(sys.modules)
         self.assertFalse(any(name.startswith("sklearn") for name in loaded))
         self.assertFalse(any(name == "six" or name.startswith("six.") for name in loaded))
+
+    @patch("pyscm.scm.find_max")
+    def test_disjunction_uses_training_rule_for_filtering(self, mock_find_max):
+        mock_find_max.side_effect = self._mock_find_max_rule_greater_than_one
+
+        X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
+        y = np.array([1, 1, 0, 0], dtype=np.uint8)
+
+        model = SetCoveringMachineClassifier(model_type="disjunction", max_rules=2)
+        model.fit(X, y)
+
+        # Correct behavior: training-space rule (> 1) clears remaining negatives in one iteration.
+        self.assertEqual(mock_find_max.call_count, 1)
+        self.assertEqual(len(model.model_.rules), 1)
+
+        # Disjunction stores the inverse of the training-space rule in the final model.
+        self.assertEqual(model.model_.rules[0].kind, "less_equal")
+        self.assertEqual(model.model_.rules[0].feature_idx, 0)
+        self.assertEqual(model.model_.rules[0].threshold, 1)
+
+    @patch("pyscm.scm.find_max")
+    def test_disjunction_max_rules_one_and_conjunction_rule_storage(self, mock_find_max):
+        mock_find_max.side_effect = self._mock_find_max_rule_greater_than_one
+        X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
+        y = np.array([1, 1, 0, 0], dtype=np.uint8)
+
+        disjunction = SetCoveringMachineClassifier(model_type="disjunction", max_rules=1)
+        disjunction.fit(X, y)
+        self.assertEqual(len(disjunction.model_.rules), 1)
+        self.assertEqual(disjunction.model_.rules[0].kind, "less_equal")
+
+        conjunction = SetCoveringMachineClassifier(model_type="conjunction", max_rules=1)
+        conjunction.fit(X, y)
+        self.assertEqual(len(conjunction.model_.rules), 1)
+        self.assertEqual(conjunction.model_.rules[0].kind, "greater")

@@ -116,23 +116,26 @@ class SetCoveringMachineClassifier:
             else:
                 keep_idx = 0
 
-            added_rule = DecisionStump(
+            training_rule = DecisionStump(
                 feature_idx=int(opti_feat_idx[keep_idx]),
                 threshold=int(opti_threshold[keep_idx]),
                 kind="greater" if int(opti_kind[keep_idx]) == 0 else "less_equal",
             )
-            if self.model_type == "disjunction":
-                added_rule = added_rule.inverse()
-            self.model_.add(added_rule)
+            # For disjunction, training is done in conjunction-space on inverted labels:
+            # keep filtering with the training-space rule, but store its inverse in the final model.
+            model_rule = (
+                training_rule if self.model_type == "conjunction" else training_rule.inverse()
+            )
+            self.model_.add(model_rule)
 
             logging.debug("The best rule has utility %.3f", opti_utility)
 
-            feature_values = X[:, added_rule.feature_idx]
+            feature_values = X[:, training_rule.feature_idx]
             remaining_example_idx = remaining_example_idx[
-                added_rule.classify_feature_values(feature_values[remaining_example_idx])
+                training_rule.classify_feature_values(feature_values[remaining_example_idx])
             ]
             remaining_negative_example_idx = remaining_negative_example_idx[
-                added_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
+                training_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
             ]
 
             iteration_callback(self.model_)
