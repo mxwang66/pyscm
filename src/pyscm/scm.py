@@ -28,6 +28,10 @@ class DecisionStump:
             kind="greater" if self.kind == "less_equal" else "less_equal",
         )
 
+    def __str__(self) -> str:
+        operator = ">" if self.kind == "greater" else "<="
+        return f"X[{self.feature_idx}] {operator} {self.threshold}"
+
 
 class _RuleListModel:
     def __init__(self, model_type: str):
@@ -97,7 +101,7 @@ class SetCoveringMachineClassifier:
         if not hasattr(self, "model_"):
             raise RuntimeError("SetCoveringMachineClassifier must be fitted before calling predict().")
 
-    def fit(self, X: NDArray[np.uint8], y: NDArray[np.bool_]) -> "SetCoveringMachineClassifier":
+    def fit(self, X: NDArray[np.uint8], y: NDArray[np.bool_]) -> None:
         if self.model_type not in {"conjunction", "disjunction"}:
             raise ValueError("Unsupported model type.")
 
@@ -105,17 +109,14 @@ class SetCoveringMachineClassifier:
         Xt = X.T
 
         if self.model_type == "conjunction":
-            pos_ex_idx = np.where(y)[0].astype(np.intp, copy=False)
             neg_ex_idx = np.where(~y)[0].astype(np.intp, copy=False)
+            y_unified = y.astype(np.uint8, copy=False)
         else:
             # Learn a conjunction on inverted labels and invert added rules.
-            pos_ex_idx = np.where(~y)[0].astype(np.intp, copy=False)
             neg_ex_idx = np.where(y)[0].astype(np.intp, copy=False)
+            y_unified = (~y).astype(np.uint8, copy=False)
 
-        y_unified = np.zeros(len(y), dtype=np.uint8)
-        y_unified[pos_ex_idx] = 1
-
-        x_argsort_by_feature_t = np.argsort(X.T, axis=1)
+        X_argsort_by_feature_T = np.argsort(Xt, axis=1)
         self.model_ = _RuleListModel(self.model_type)
 
         remaining_example_idx = np.arange(len(y_unified), dtype=np.intp)
@@ -129,7 +130,7 @@ class SetCoveringMachineClassifier:
                 opti_kind,
                 opti_n,
                 opti_p_bar,
-            ) = find_max(self.p, Xt, y_unified, x_argsort_by_feature_t, remaining_example_idx)
+            ) = find_max(self.p, Xt, y_unified, X_argsort_by_feature_T, remaining_example_idx)
 
             if len(opti_feat_idx) > 1:
                 training_risk_decrease = (1.0 * opti_n) - opti_p_bar
@@ -158,8 +159,6 @@ class SetCoveringMachineClassifier:
             remaining_negative_example_idx = remaining_negative_example_idx[
                 training_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
             ]
-
-        return self
 
     def predict(self, X: NDArray[np.uint8]) -> NDArray[np.bool_]:
         self._assert_is_fitted()
