@@ -13,13 +13,13 @@ class DecisionStump:
     threshold: int
     kind: str = "greater"
 
-    def classify(self, X: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def classify(self, X: NDArray[np.uint8]) -> NDArray[np.bool_]:
         return self.classify_feature_values(X[:, self.feature_idx])
 
-    def classify_feature_values(self, feature_values: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def classify_feature_values(self, feature_values: NDArray[np.uint8]) -> NDArray[np.bool_]:
         if self.kind == "greater":
-            return (feature_values > self.threshold).astype(np.uint8)
-        return (feature_values <= self.threshold).astype(np.uint8)
+            return feature_values > self.threshold
+        return feature_values <= self.threshold
 
     def inverse(self) -> "DecisionStump":
         return DecisionStump(
@@ -37,15 +37,15 @@ class _RuleListModel:
     def add(self, rule: DecisionStump) -> None:
         self.rules.append(rule)
 
-    def predict(self, X: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def predict(self, X: NDArray[np.uint8]) -> NDArray[np.bool_]:
         if self.model_type == "conjunction":
-            predictions = np.ones(X.shape[0], dtype=np.uint8)
+            predictions = np.ones(X.shape[0], dtype=np.bool_)
             for rule in self.rules:
-                np.bitwise_and(predictions, rule.classify(X), out=predictions)
+                np.logical_and(predictions, rule.classify(X), out=predictions)
         else:
-            predictions = np.zeros(X.shape[0], dtype=np.uint8)
+            predictions = np.zeros(X.shape[0], dtype=np.bool_)
             for rule in self.rules:
-                np.bitwise_or(predictions, rule.classify(X), out=predictions)
+                np.logical_or(predictions, rule.classify(X), out=predictions)
         return predictions
 
     def __len__(self) -> int:
@@ -153,15 +153,15 @@ class SetCoveringMachineClassifier:
 
             feature_values = X[:, training_rule.feature_idx]
             remaining_example_idx = remaining_example_idx[
-                training_rule.classify_feature_values(feature_values[remaining_example_idx]) == 1
+                training_rule.classify_feature_values(feature_values[remaining_example_idx])
             ]
             remaining_negative_example_idx = remaining_negative_example_idx[
-                training_rule.classify_feature_values(feature_values[remaining_negative_example_idx]) == 1
+                training_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
             ]
 
         return self
 
-    def predict(self, X: NDArray[np.uint8]) -> NDArray[np.uint8]:
+    def predict(self, X: NDArray[np.uint8]) -> NDArray[np.bool_]:
         self._assert_is_fitted()
         X = self._validate_X_uint8(X)
         return self.model_.predict(X)

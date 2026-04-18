@@ -44,7 +44,7 @@ class UtilityTests(TestCase):
         model.fit(X, y)
         preds = model.predict(X)
 
-        self.assertEqual(preds.dtype, np.uint8)
+        self.assertEqual(preds.dtype, np.bool_)
         self.assertEqual(preds.shape, y.shape)
 
     def test_fit_predict_disjunction(self):
@@ -55,7 +55,7 @@ class UtilityTests(TestCase):
         model.fit(X, y)
         preds = model.predict(X)
 
-        self.assertEqual(preds.dtype, np.uint8)
+        self.assertEqual(preds.dtype, np.bool_)
         self.assertEqual(preds.shape, y.shape)
 
     def test_predict_before_fit_raises(self):
