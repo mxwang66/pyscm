@@ -1,65 +1,42 @@
-"""
-    pyscm -- The Set Covering Machine in Python
-    Copyright (C) 2017 Alexandre Drouin
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-"""
-from __future__ import print_function, division, absolute_import, unicode_literals
-from six import iteritems
-
 import logging
+
 import numpy as np
 
-from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import accuracy_score
-from sklearn.utils.validation import (
-    check_is_fitted,
-    check_random_state,
-)
-from warnings import warn
-
-from ._scm_utility import find_max as find_max_utility  # cpp extensions
-from .model import ConjunctionModel, DisjunctionModel
+from ._scm_utility import find_max
 from .rules import DecisionStump
-from .utils import _class_to_string
 
 
-class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
-    def __init__(
-        self, p=1.0, model_type="conjunction", max_rules=10, random_state=None
-    ):
+class _RuleListModel:
+    def __init__(self, model_type: str):
+        self.model_type = model_type
+        self.rules = []
+
+    def add(self, rule: DecisionStump) -> None:
+        self.rules.append(rule)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        if self.model_type == "conjunction":
+            predictions = np.ones(X.shape[0], dtype=bool)
+            for rule in self.rules:
+                np.logical_and(predictions, rule.classify(X), out=predictions)
+        else:
+            predictions = np.zeros(X.shape[0], dtype=bool)
+            for rule in self.rules:
+                np.logical_or(predictions, rule.classify(X), out=predictions)
+        return predictions.astype(np.uint8)
+
+    def __len__(self) -> int:
+        return len(self.rules)
+
+
+class SetCoveringMachineClassifier:
+    def __init__(self, p: float = 1.0, model_type: str = "conjunction", max_rules: int = 10):
         self.p = p
         self.model_type = model_type
         self.max_rules = max_rules
-        self.random_state = random_state
-
-    def get_params(self, deep=True):
-        return {
-            "p": self.p,
-            "model_type": self.model_type,
-            "max_rules": self.max_rules,
-            "random_state": self.random_state,
-        }
-
-    def set_params(self, **parameters):
-        for parameter, value in iteritems(parameters):
-            setattr(self, parameter, value)
-        return self
 
     @staticmethod
-    def _validate_X_uint8(X):
+    def _validate_X_uint8(X: np.ndarray) -> np.ndarray:
         if not isinstance(X, np.ndarray):
             raise TypeError("X must be a numpy.ndarray.")
         if X.dtype != np.uint8:
@@ -70,7 +47,7 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
             raise ValueError("X must be F-contiguous.")
         return X
 
-    def _validate_fit_inputs(self, X, y):
+    def _validate_fit_inputs(self, X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         X = self._validate_X_uint8(X)
         if not isinstance(y, np.ndarray):
             raise TypeError("y must be a numpy.ndarray.")
@@ -83,312 +60,86 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
         if X.shape[0] != y.shape[0]:
             raise ValueError("X and y must have the same number of rows.")
 
-        classes, total_n_ex_by_class = np.unique(y, return_counts=True)
-        if len(classes) != 2:
-            raise ValueError("y must contain two unique classes.")
+        classes = np.unique(y)
         if not np.array_equal(classes, np.array([0, 1], dtype=np.uint8)):
             raise ValueError("y must contain only binary labels {0, 1}.")
 
-        return X, y, classes, total_n_ex_by_class
+        return X, y
 
-    def fit(self, X, y, tiebreaker=None, iteration_callback=None, **fit_params):
-        """
-        Fit a SCM model.
+    def _assert_is_fitted(self) -> None:
+        if not hasattr(self, "model_"):
+            raise RuntimeError("SetCoveringMachineClassifier must be fitted before calling predict().")
 
-        Parameters:
-        -----------
-        X: array-like, shape=[n_examples, n_features]
-            The feature of the input examples.
-        y : array-like, shape = [n_samples]
-            The labels of the input examples.
-        tiebreaker: function(model_type, feature_idx, thresholds, rule_type)
-            A function that takes in the model type and information about the
-            equivalent rules and outputs the index of the rule to use. The lists
-            respectively contain the feature indices, thresholds and type
-            corresponding of the equivalent rules. If None, the rule that most
-            decreases the training error is selected. Note: the model type is
-            provided because the rules that are added to disjunction models
-            correspond to the inverse of the rules that are handled during
-            training. Handle this case with care.
-        iteration_callback: function(model)
-            A function that is called each time a rule is added to the model.
-
-        Returns:
-        --------
-        self: object
-            Returns self.
-
-        """
-        random_state = check_random_state(self.random_state)
-
-        if self.model_type == "conjunction":
-            self._add_attribute_to_model = self._append_conjunction_model
-            self._get_example_idx_by_class = self._get_example_idx_by_class_conjunction
-        elif self.model_type == "disjunction":
-            self._add_attribute_to_model = self._append_disjunction_model
-            self._get_example_idx_by_class = self._get_example_idx_by_class_disjunction
-        else:
+    def fit(self, X, y, tiebreaker=None, iteration_callback=None):
+        if self.model_type not in {"conjunction", "disjunction"}:
             raise ValueError("Unsupported model type.")
 
-        # Initialize callbacks
         if iteration_callback is None:
-            iteration_callback = lambda x: None
+            iteration_callback = lambda _: None
 
-        # Validate the input data
-        logging.debug("Validating the input data")
-        X, y, self.classes_, total_n_ex_by_class = self._validate_fit_inputs(
-            X, y
-        )
+        X, y = self._validate_fit_inputs(X, y)
         Xt = X.T
-        logging.debug(
-            "The data contains {0:d} examples. Negative class is {1!s} (n: {2:d}) and positive class is {3!s} (n: {4:d}).".format(
-                len(y),
-                self.classes_[0],
-                total_n_ex_by_class[0],
-                self.classes_[1],
-                total_n_ex_by_class[1],
-            )
-        )
 
-        # Invert the classes if we are learning a disjunction
-        logging.debug("Preprocessing example labels")
-        pos_ex_idx, neg_ex_idx = self._get_example_idx_by_class(y)
+        if self.model_type == "conjunction":
+            pos_ex_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
+            neg_ex_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
+        else:
+            # Learn a conjunction on inverted labels and invert added rules.
+            pos_ex_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
+            neg_ex_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
+
         y_unified = np.zeros(len(y), dtype=np.uint8)
         y_unified[pos_ex_idx] = 1
-        y_unified[neg_ex_idx] = 0
 
-        # Presort all the features
-        logging.debug("Presorting all features")
-        X_argsort_by_feature_T = np.argsort(X.T, axis=1)
+        x_argsort_by_feature_t = np.argsort(X.T, axis=1)
+        self.model_ = _RuleListModel(self.model_type)
 
-        # Create an empty model
-        logging.debug("Initializing empty model")
-        self.model_ = (
-            ConjunctionModel()
-            if self.model_type == "conjunction"
-            else DisjunctionModel()
-        )
-
-        logging.debug("Training start")
         remaining_example_idx = np.arange(len(y_unified), dtype=np.intp)
         remaining_negative_example_idx = neg_ex_idx.astype(np.intp, copy=False)
-        while (
-            len(remaining_negative_example_idx) > 0
-            and len(self.model_) < self.max_rules
-        ):
-            logging.debug("Finding the optimal rule to add to the model")
+
+        while len(remaining_negative_example_idx) > 0 and len(self.model_) < self.max_rules:
             (
                 opti_utility,
                 opti_feat_idx,
                 opti_threshold,
                 opti_kind,
-                opti_N,
-                opti_P_bar,
-            ) = self._get_best_utility_rules(
-                Xt,
-                y_unified,
-                X_argsort_by_feature_T,
-                remaining_example_idx,
-            )
+                opti_n,
+                opti_p_bar,
+            ) = find_max(self.p, Xt, y_unified, x_argsort_by_feature_t, remaining_example_idx)
 
-            logging.debug(
-                "Tiebreaking. Found {0:d} optimal rules".format(len(opti_feat_idx))
-            )
             if len(opti_feat_idx) > 1:
                 if tiebreaker is None:
-                    training_risk_decrease = 1.0 * opti_N - opti_P_bar
-                    keep_idx = np.where(
-                        training_risk_decrease == training_risk_decrease.max()
-                    )[0][0]
+                    training_risk_decrease = (1.0 * opti_n) - opti_p_bar
+                    keep_idx = np.where(training_risk_decrease == training_risk_decrease.max())[0][0]
                 else:
-                    keep_idx = tiebreaker(
-                        self.model_type, opti_feat_idx, opti_threshold, opti_kind
-                    )
+                    keep_idx = tiebreaker(self.model_type, opti_feat_idx, opti_threshold, opti_kind)
             else:
                 keep_idx = 0
-            stump = DecisionStump(
-                feature_idx=opti_feat_idx[keep_idx],
-                threshold=opti_threshold[keep_idx],
-                kind="greater" if opti_kind[keep_idx] == 0 else "less_equal",
-            )
 
-            logging.debug("The best rule has utility {0:.3f}".format(opti_utility))
-            self._add_attribute_to_model(stump)
-
-            logging.debug(
-                "Discarding all examples that the rule classifies as negative"
+            added_rule = DecisionStump(
+                feature_idx=int(opti_feat_idx[keep_idx]),
+                threshold=int(opti_threshold[keep_idx]),
+                kind="greater" if int(opti_kind[keep_idx]) == 0 else "less_equal",
             )
-            feature_values = X[:, stump.feature_idx]
+            if self.model_type == "disjunction":
+                added_rule = added_rule.inverse()
+            self.model_.add(added_rule)
+
+            logging.debug("The best rule has utility %.3f", opti_utility)
+
+            feature_values = X[:, added_rule.feature_idx]
             remaining_example_idx = remaining_example_idx[
-                stump.classify_feature_values(feature_values[remaining_example_idx])
+                added_rule.classify_feature_values(feature_values[remaining_example_idx])
             ]
             remaining_negative_example_idx = remaining_negative_example_idx[
-                stump.classify_feature_values(
-                    feature_values[remaining_negative_example_idx]
-                )
+                added_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
             ]
-            logging.debug(
-                "There are {0:d} examples remaining ({1:d} negatives)".format(
-                    len(remaining_example_idx), len(remaining_negative_example_idx)
-                )
-            )
 
             iteration_callback(self.model_)
-
-        logging.debug("Training completed")
-
-        logging.debug("Calculating rule importances")
-        # Definition: how often each rule outputs a value that causes the value of the model to be final
-        final_outcome = 0 if self.model_type == "conjunction" else 1
-        total_outcome = (self.model_.predict(X) == final_outcome).sum()  # n times the model outputs the final outcome
-        self.rule_importances_ = np.array([(r.classify(X) == final_outcome).sum() / total_outcome for r in self.model_.rules])  # contribution of each rule
-        logging.debug("Done.")
 
         return self
 
     def predict(self, X):
-        """
-        Predict class
-
-        Parameters:
-        -----------
-        X: array-like, shape=[n_examples, n_features]
-            The feature of the input examples.
-
-        Returns:
-        --------
-        predictions: numpy_array, shape=[n_examples]
-            The predicted class for each example.
-
-        """
-        check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
+        self._assert_is_fitted()
         X = self._validate_X_uint8(X)
-        return self.classes_[self.model_.predict(X)]
-
-    def predict_proba(self, X):
-        """
-        Predict class probabilities
-
-        Parameters:
-        -----------
-        X: array-like, shape=(n_examples, n_features)
-            The feature of the input examples.
-
-        Returns:
-        --------
-        p : array of shape = [n_examples, 2]
-            The class probabilities for each example. Classes are ordered by lexicographic order.
-
-        """
-        warn(
-            "SetCoveringMachines do not support probabilistic predictions. The returned values will be zero or one.",
-            RuntimeWarning,
-        )
-        check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
-        X = self._validate_X_uint8(X)
-        pos_proba = self.classes_[self.model_.predict(X)]
-        proba = np.empty((X.shape[0], 2), dtype=np.result_type(pos_proba, np.float64))
-        proba[:, 1] = pos_proba
-        proba[:, 0] = 1.0 - pos_proba
-        return proba
-    
-    @property
-    def rule_importances(self):
-        """
-        A measure of importance for each rule in the classifier based on how much it contributes to the final predictions.
-        
-        Returns:
-        --------
-        rule_importances: list of float
-            Importances of each rule, defined as defined in https://doi.org/10.1186/s12864-016-2889-6
-        """
-        check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
-        return self.rule_importances_
-
-    def score(self, X, y):
-        """
-        Predict classes of examples and measure accuracy
-
-        Parameters:
-        -----------
-        X: array-like, shape=(n_examples, n_features)
-            The feature of the input examples.
-        y : array-like, shape = [n_samples]
-            The labels of the input examples.
-
-        Returns:
-        --------
-        accuracy: float
-            The proportion of correctly classified examples.
-
-        """
-        check_is_fitted(self, ["model_", "rule_importances_", "classes_"])
-        X = self._validate_X_uint8(X)
-        if not isinstance(y, np.ndarray):
-            raise TypeError("y must be a numpy.ndarray.")
-        if y.ndim != 1:
-            raise ValueError("y must be a 1D array.")
-        if X.shape[0] != y.shape[0]:
-            raise ValueError("X and y must have the same number of rows.")
-        return accuracy_score(y_true=y, y_pred=self.predict(X))
-
-    def _append_conjunction_model(self, new_rule):
-        self.model_.add(new_rule)
-        logging.debug("Attribute added to the model: " + str(new_rule))
-        return new_rule
-
-    def _append_disjunction_model(self, new_rule):
-        new_rule = new_rule.inverse()
-        self.model_.add(new_rule)
-        logging.debug("Attribute added to the model: " + str(new_rule))
-        return new_rule
-
-    def _get_example_idx_by_class_conjunction(self, y):
-        positive_example_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
-        negative_example_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
-        return positive_example_idx, negative_example_idx
-
-    def _get_example_idx_by_class_disjunction(self, y):
-        positive_example_idx = np.where(y == 0)[0].astype(np.intp, copy=False)
-        negative_example_idx = np.where(y == 1)[0].astype(np.intp, copy=False)
-        return positive_example_idx, negative_example_idx
-
-    def __str__(self):
-        return _class_to_string(self)
-
-
-class SetCoveringMachineClassifier(BaseSetCoveringMachine):
-    """
-    A Set Covering Machine classifier
-
-    [1]_ Marchand, M., & Shawe-Taylor, J. (2002). The set covering machine.
-    Journal of Machine Learning Research, 3(Dec), 723-746.
-
-    Parameters:
-    -----------
-    p: float
-        The trade-off parameter for the utility function (suggestion: use values >= 1).
-    model_type: str, default="conjunction"
-        The model type (conjunction or disjunction).
-    max_rules: int, default=10
-        The maximum number of rules in the model.
-    random_state: int, np.random.RandomState or None, default=None
-        The random state.
-
-    """
-
-    def __init__(
-        self, p=1.0, model_type=str("conjunction"), max_rules=10, random_state=None
-    ):
-        super(SetCoveringMachineClassifier, self).__init__(
-            p=p, model_type=model_type, max_rules=max_rules, random_state=random_state
-        )
-
-    def _get_best_utility_rules(self, Xt, y, X_argsort_by_feature_T, example_idx):
-        return find_max_utility(
-            self.p,
-            Xt,
-            y,
-            X_argsort_by_feature_T,
-            example_idx,
-        )
+        return self.model_.predict(X)
