@@ -6,8 +6,7 @@ from unittest.mock import patch
 import numpy as np
 
 from pyscm._scm_utility import find_max
-from pyscm.rules import DecisionStump
-from pyscm.scm import SetCoveringMachineClassifier
+from pyscm.scm import DecisionStump, SetCoveringMachineClassifier
 
 
 class UtilityTests(TestCase):

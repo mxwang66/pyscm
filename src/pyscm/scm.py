@@ -1,29 +1,52 @@
 import logging
+from dataclasses import dataclass
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ._scm_utility import find_max
-from .rules import DecisionStump
+
+
+@dataclass(frozen=True)
+class DecisionStump:
+    feature_idx: int
+    threshold: int
+    kind: str = "greater"
+
+    def classify(self, X: NDArray[np.uint8]) -> NDArray[np.uint8]:
+        return self.classify_feature_values(X[:, self.feature_idx])
+
+    def classify_feature_values(self, feature_values: NDArray[np.uint8]) -> NDArray[np.uint8]:
+        if self.kind == "greater":
+            return (feature_values > self.threshold).astype(np.uint8)
+        return (feature_values <= self.threshold).astype(np.uint8)
+
+    def inverse(self) -> "DecisionStump":
+        return DecisionStump(
+            feature_idx=self.feature_idx,
+            threshold=self.threshold,
+            kind="greater" if self.kind == "less_equal" else "less_equal",
+        )
 
 
 class _RuleListModel:
     def __init__(self, model_type: str):
         self.model_type = model_type
-        self.rules = []
+        self.rules: list[DecisionStump] = []
 
     def add(self, rule: DecisionStump) -> None:
         self.rules.append(rule)
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def predict(self, X: NDArray[np.uint8]) -> NDArray[np.uint8]:
         if self.model_type == "conjunction":
-            predictions = np.ones(X.shape[0], dtype=bool)
+            predictions = np.ones(X.shape[0], dtype=np.uint8)
             for rule in self.rules:
-                np.logical_and(predictions, rule.classify(X), out=predictions)
+                np.bitwise_and(predictions, rule.classify(X), out=predictions)
         else:
-            predictions = np.zeros(X.shape[0], dtype=bool)
+            predictions = np.zeros(X.shape[0], dtype=np.uint8)
             for rule in self.rules:
-                np.logical_or(predictions, rule.classify(X), out=predictions)
-        return predictions.astype(np.uint8)
+                np.bitwise_or(predictions, rule.classify(X), out=predictions)
+        return predictions
 
     def __len__(self) -> int:
         return len(self.rules)
@@ -36,7 +59,7 @@ class SetCoveringMachineClassifier:
         self.max_rules = max_rules
 
     @staticmethod
-    def _validate_X_uint8(X: np.ndarray) -> np.ndarray:
+    def _validate_X_uint8(X: NDArray[np.uint8]) -> NDArray[np.uint8]:
         if not isinstance(X, np.ndarray):
             raise TypeError("X must be a numpy.ndarray.")
         if X.dtype != np.uint8:
@@ -47,7 +70,11 @@ class SetCoveringMachineClassifier:
             raise ValueError("X must be F-contiguous.")
         return X
 
-    def _validate_fit_inputs(self, X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _validate_fit_inputs(
+        self,
+        X: NDArray[np.uint8],
+        y: NDArray[np.uint8],
+    ) -> tuple[NDArray[np.uint8], NDArray[np.uint8]]:
         X = self._validate_X_uint8(X)
         if not isinstance(y, np.ndarray):
             raise TypeError("y must be a numpy.ndarray.")
@@ -70,12 +97,9 @@ class SetCoveringMachineClassifier:
         if not hasattr(self, "model_"):
             raise RuntimeError("SetCoveringMachineClassifier must be fitted before calling predict().")
 
-    def fit(self, X, y, tiebreaker=None, iteration_callback=None):
+    def fit(self, X: NDArray[np.uint8], y: NDArray[np.uint8]) -> "SetCoveringMachineClassifier":
         if self.model_type not in {"conjunction", "disjunction"}:
             raise ValueError("Unsupported model type.")
-
-        if iteration_callback is None:
-            iteration_callback = lambda _: None
 
         X, y = self._validate_fit_inputs(X, y)
         Xt = X.T
@@ -108,11 +132,8 @@ class SetCoveringMachineClassifier:
             ) = find_max(self.p, Xt, y_unified, x_argsort_by_feature_t, remaining_example_idx)
 
             if len(opti_feat_idx) > 1:
-                if tiebreaker is None:
-                    training_risk_decrease = (1.0 * opti_n) - opti_p_bar
-                    keep_idx = np.where(training_risk_decrease == training_risk_decrease.max())[0][0]
-                else:
-                    keep_idx = tiebreaker(self.model_type, opti_feat_idx, opti_threshold, opti_kind)
+                training_risk_decrease = (1.0 * opti_n) - opti_p_bar
+                keep_idx = np.where(training_risk_decrease == training_risk_decrease.max())[0][0]
             else:
                 keep_idx = 0
 
@@ -132,17 +153,15 @@ class SetCoveringMachineClassifier:
 
             feature_values = X[:, training_rule.feature_idx]
             remaining_example_idx = remaining_example_idx[
-                training_rule.classify_feature_values(feature_values[remaining_example_idx])
+                training_rule.classify_feature_values(feature_values[remaining_example_idx]) == 1
             ]
             remaining_negative_example_idx = remaining_negative_example_idx[
-                training_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
+                training_rule.classify_feature_values(feature_values[remaining_negative_example_idx]) == 1
             ]
-
-            iteration_callback(self.model_)
 
         return self
 
-    def predict(self, X):
+    def predict(self, X: NDArray[np.uint8]) -> NDArray[np.uint8]:
         self._assert_is_fitted()
         X = self._validate_X_uint8(X)
         return self.model_.predict(X)
