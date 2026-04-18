@@ -6,7 +6,7 @@ from unittest.mock import patch
 import numpy as np
 
 from pyscm._scm_utility import find_max
-from pyscm.scm import DecisionStump, SetCoveringMachineClassifier
+from pyscm.scm import DecisionStump, fit_scm, predict_scm
 
 
 class UtilityTests(TestCase):
@@ -40,9 +40,8 @@ class UtilityTests(TestCase):
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
         y = np.array([False, False, True, True], dtype=np.bool_)
 
-        model = SetCoveringMachineClassifier(model_type="conjunction", max_rules=2)
-        model.fit(X, y)
-        preds = model.predict(X)
+        model = fit_scm(X, y, model_type="conjunction", max_rules=2)
+        preds = predict_scm(model, X)
 
         self.assertEqual(preds.dtype, np.bool_)
         self.assertEqual(preds.shape, y.shape)
@@ -51,63 +50,50 @@ class UtilityTests(TestCase):
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
         y = np.array([False, False, True, True], dtype=np.bool_)
 
-        model = SetCoveringMachineClassifier(model_type="disjunction", max_rules=2)
-        model.fit(X, y)
-        preds = model.predict(X)
+        model = fit_scm(X, y, model_type="disjunction", max_rules=2)
+        preds = predict_scm(model, X)
 
         self.assertEqual(preds.dtype, np.bool_)
         self.assertEqual(preds.shape, y.shape)
 
-    def test_predict_before_fit_raises(self):
-        X = np.asfortranarray(np.array([[0], [1]], dtype=np.uint8))
-        model = SetCoveringMachineClassifier()
-        with self.assertRaisesRegex(RuntimeError, "must be fitted"):
-            model.predict(X)
-
     def test_fit_rejects_non_uint8_inputs(self):
-        model = SetCoveringMachineClassifier(max_rules=2)
         X = np.array([[0.0], [1.0]], dtype=np.float64)
-        y = np.array([0, 1], dtype=np.uint8)
+        y = np.array([False, True], dtype=np.bool_)
         with self.assertRaisesRegex(TypeError, r"X must have dtype np.uint8"):
-            model.fit(X, y)
+            fit_scm(X, y, max_rules=2)
 
     def test_fit_rejects_non_f_contiguous_inputs(self):
-        model = SetCoveringMachineClassifier(max_rules=2)
         X_base = np.array([[0, 9], [1, 9], [2, 9], [3, 9]], dtype=np.uint8)
         X = X_base[:, :1]
         self.assertFalse(X.flags.f_contiguous)
-        y = np.array([0, 0, 1, 1], dtype=np.uint8)
+        y = np.array([False, False, True, True], dtype=np.bool_)
         with self.assertRaisesRegex(ValueError, r"X must be F-contiguous"):
-            model.fit(X, y)
+            fit_scm(X, y, max_rules=2)
 
     def test_fit_rejects_uint8_y(self):
-        model = SetCoveringMachineClassifier(max_rules=2)
         X = np.asfortranarray(np.array([[0], [1]], dtype=np.uint8))
         y = np.array([0, 1], dtype=np.uint8)
         with self.assertRaisesRegex(TypeError, r"y must have dtype np.bool_"):
-            model.fit(X, y)
+            fit_scm(X, y, max_rules=2)
 
     def test_fit_rejects_non_bool_y(self):
-        model = SetCoveringMachineClassifier(max_rules=2)
         X = np.asfortranarray(np.array([[0], [1]], dtype=np.uint8))
         y = np.array([0, 1], dtype=np.int64)
         with self.assertRaisesRegex(TypeError, r"y must have dtype np.bool_"):
-            model.fit(X, y)
+            fit_scm(X, y, max_rules=2)
 
     def test_fit_rejects_non_c_contiguous_y(self):
-        model = SetCoveringMachineClassifier(max_rules=2)
         X = np.asfortranarray(np.array([[0], [1]], dtype=np.uint8))
         y = np.array([False, True, True, False], dtype=np.bool_)[::2]
         self.assertFalse(y.flags.c_contiguous)
         with self.assertRaisesRegex(ValueError, r"y must be C-contiguous"):
-            model.fit(X, y)
+            fit_scm(X, y, max_rules=2)
 
     def test_fit_rejects_single_class_bool_y(self):
-        model = SetCoveringMachineClassifier(max_rules=2)
         X = np.asfortranarray(np.array([[0], [1], [2]], dtype=np.uint8))
         y = np.array([True, True, True], dtype=np.bool_)
         with self.assertRaisesRegex(ValueError, r"both boolean labels"):
-            model.fit(X, y)
+            fit_scm(X, y, max_rules=2)
 
     def test_decision_stump_classify_feature_values_matches_classify(self):
         X = np.asfortranarray(np.array([[0, 2], [1, 1], [2, 0]], dtype=np.uint8))
@@ -133,17 +119,16 @@ class UtilityTests(TestCase):
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
         y = np.array([True, True, False, False], dtype=np.bool_)
 
-        model = SetCoveringMachineClassifier(model_type="disjunction", max_rules=2)
-        model.fit(X, y)
+        model = fit_scm(X, y, model_type="disjunction", max_rules=2)
 
         # Correct behavior: training-space rule (> 1) clears remaining negatives in one iteration.
         self.assertEqual(mock_find_max.call_count, 1)
-        self.assertEqual(len(model.model_.rules), 1)
+        self.assertEqual(len(model.rules), 1)
 
         # Disjunction stores the inverse of the training-space rule in the final model.
-        self.assertEqual(model.model_.rules[0].kind, "less_equal")
-        self.assertEqual(model.model_.rules[0].feature_idx, 0)
-        self.assertEqual(model.model_.rules[0].threshold, 1)
+        self.assertEqual(model.rules[0].kind, "less_equal")
+        self.assertEqual(model.rules[0].feature_idx, 0)
+        self.assertEqual(model.rules[0].threshold, 1)
 
     @patch("pyscm.scm.find_max")
     def test_disjunction_max_rules_one_and_conjunction_rule_storage(self, mock_find_max):
@@ -151,15 +136,13 @@ class UtilityTests(TestCase):
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
         y = np.array([True, True, False, False], dtype=np.bool_)
 
-        disjunction = SetCoveringMachineClassifier(model_type="disjunction", max_rules=1)
-        disjunction.fit(X, y)
-        self.assertEqual(len(disjunction.model_.rules), 1)
-        self.assertEqual(disjunction.model_.rules[0].kind, "less_equal")
+        disjunction = fit_scm(X, y, model_type="disjunction", max_rules=1)
+        self.assertEqual(len(disjunction.rules), 1)
+        self.assertEqual(disjunction.rules[0].kind, "less_equal")
 
-        conjunction = SetCoveringMachineClassifier(model_type="conjunction", max_rules=1)
-        conjunction.fit(X, y)
-        self.assertEqual(len(conjunction.model_.rules), 1)
-        self.assertEqual(conjunction.model_.rules[0].kind, "greater")
+        conjunction = fit_scm(X, y, model_type="conjunction", max_rules=1)
+        self.assertEqual(len(conjunction.rules), 1)
+        self.assertEqual(conjunction.rules[0].kind, "greater")
 
     @patch("pyscm.scm.find_max")
     def test_find_max_receives_uint8_labels_at_extension_boundary(self, mock_find_max):
@@ -173,7 +156,18 @@ class UtilityTests(TestCase):
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
         y = np.array([False, False, True, True], dtype=np.bool_)
 
-        model = SetCoveringMachineClassifier(model_type="conjunction", max_rules=1)
-        model.fit(X, y)
+        fit_scm(X, y, model_type="conjunction", max_rules=1)
 
         self.assertEqual(captured["y_dtype"], np.uint8)
+
+    def test_predict_rejects_non_f_contiguous_inputs(self):
+        model = fit_scm(
+            np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8)),
+            np.array([False, False, True, True], dtype=np.bool_),
+            max_rules=1,
+        )
+        X_base = np.array([[0, 9], [1, 9], [2, 9], [3, 9]], dtype=np.uint8)
+        X = X_base[:, :1]
+        self.assertFalse(X.flags.f_contiguous)
+        with self.assertRaisesRegex(ValueError, r"X must be F-contiguous"):
+            predict_scm(model, X)

@@ -16,4 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-from .scm import SetCoveringMachineClassifier
+from .scm import DecisionStump, SCMModel, fit_scm, predict_scm
+
+__all__ = ["DecisionStump", "SCMModel", "fit_scm", "predict_scm"]
