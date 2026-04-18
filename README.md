@@ -43,6 +43,20 @@ python -m build
 pytest
 ```
 
+## Quick usage
+
+```python
+import numpy as np
+
+from pyscm import fit_scm, predict_scm
+
+X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
+y = np.array([False, False, True, True], dtype=np.bool_)
+
+model = fit_scm(X, y, model_type="conjunction", max_rules=2)
+predictions = predict_scm(model, X)
+```
+
 ## Contributors
  * [Alexandre Drouin](http://graal.ift.ulaval.ca/adrouin) (package maintainer)
  * [Baptiste Bauvin](https://github.com/babau1)
