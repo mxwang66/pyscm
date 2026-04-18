@@ -112,10 +112,8 @@ class SetCoveringMachineClassifier:
             pos_ex_idx = np.where(~y)[0].astype(np.intp, copy=False)
             neg_ex_idx = np.where(y)[0].astype(np.intp, copy=False)
 
-        y_unified = np.zeros(len(y), dtype=np.bool_)
-        y_unified[pos_ex_idx] = True
-        # Keep labels as bool in Python logic and reinterpret as uint8 at the C++ boundary.
-        y_unified_uint8 = y_unified.view(np.uint8)
+        y_unified = np.zeros(len(y), dtype=np.uint8)
+        y_unified[pos_ex_idx] = 1
 
         x_argsort_by_feature_t = np.argsort(X.T, axis=1)
         self.model_ = _RuleListModel(self.model_type)
@@ -131,7 +129,7 @@ class SetCoveringMachineClassifier:
                 opti_kind,
                 opti_n,
                 opti_p_bar,
-            ) = find_max(self.p, Xt, y_unified_uint8, x_argsort_by_feature_t, remaining_example_idx)
+            ) = find_max(self.p, Xt, y_unified, x_argsort_by_feature_t, remaining_example_idx)
 
             if len(opti_feat_idx) > 1:
                 training_risk_decrease = (1.0 * opti_n) - opti_p_bar
