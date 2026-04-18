@@ -5,7 +5,17 @@ import numpy as np
 from unittest import TestCase
 
 from pyscm._scm_utility import find_max
+from pyscm.rules import DecisionStump
 from pyscm.scm import SetCoveringMachineClassifier
+
+
+class _NoRowGatherArray(np.ndarray):
+    """ndarray subclass that rejects row-gather style advanced indexing."""
+
+    def __getitem__(self, key):
+        if self.ndim == 2 and isinstance(key, np.ndarray):
+            raise AssertionError("Row gather indexing is not allowed in this test.")
+        return super(_NoRowGatherArray, self).__getitem__(key)
 
 
 class _TrackingSCM(SetCoveringMachineClassifier):
@@ -204,6 +214,15 @@ class UtilityTests(TestCase):
 
         self.assertGreaterEqual(len(model.model_), 1)
 
+    def test_decision_stump_classify_feature_values_matches_classify(self):
+        X = np.asfortranarray(np.array([[0, 2], [1, 1], [2, 0]], dtype=np.uint8))
+        stump = DecisionStump(feature_idx=1, threshold=1, kind="greater")
+
+        np.testing.assert_array_equal(
+            stump.classify_feature_values(X[:, 1]),
+            stump.classify(X),
+        )
+
     def test_estimator_ignores_utility_feature_weights_fit_param(self):
         """Estimator behavior with utility__* fit params remains unchanged."""
         X = np.asfortranarray(np.array([[0], [1], [2], [3]], dtype=np.uint8))
@@ -235,6 +254,28 @@ class UtilityTests(TestCase):
         self.assertEqual(len({call[0] for call in model._fit_call_ids}), 1)
         self.assertEqual(len({call[1] for call in model._fit_call_ids}), 1)
         self.assertEqual(len({call[2] for call in model._fit_call_ids}), 1)
+
+    def test_fit_avoids_row_gather_on_f_contiguous_training_data(self):
+        X_base = np.asfortranarray(
+            np.array(
+                [
+                    [0, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                    [2, 0],
+                    [2, 1],
+                ],
+                dtype=np.uint8,
+            )
+        )
+        X = X_base.view(_NoRowGatherArray)
+        y = np.array([0, 0, 1, 1, 0, 1], dtype=np.uint8)
+
+        model = SetCoveringMachineClassifier(max_rules=3, random_state=0)
+        model.fit(X, y)
+
+        self.assertGreaterEqual(len(model.model_), 1)
 
     def test_random_data(self):
         """

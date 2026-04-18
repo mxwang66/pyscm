@@ -218,11 +218,14 @@ class BaseSetCoveringMachine(BaseEstimator, ClassifierMixin):
             logging.debug(
                 "Discarding all examples that the rule classifies as negative"
             )
+            feature_values = X[:, stump.feature_idx]
             remaining_example_idx = remaining_example_idx[
-                stump.classify(X[remaining_example_idx])
+                stump.classify_feature_values(feature_values[remaining_example_idx])
             ]
             remaining_negative_example_idx = remaining_negative_example_idx[
-                stump.classify(X[remaining_negative_example_idx])
+                stump.classify_feature_values(
+                    feature_values[remaining_negative_example_idx]
+                )
             ]
             logging.debug(
                 "There are {0:d} examples remaining ({1:d} negatives)".format(
