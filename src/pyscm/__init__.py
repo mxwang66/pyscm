@@ -16,6 +16,6 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-from .scm import DecisionStump, SCMModel, fit_scm, predict_scm
+from .scm import SCMRule, SCMModel, fit_scm, predict_scm
 
-__all__ = ["DecisionStump", "SCMModel", "fit_scm", "predict_scm"]
+__all__ = ["SCMRule", "SCMModel", "fit_scm", "predict_scm"]

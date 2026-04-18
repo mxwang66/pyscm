@@ -8,7 +8,7 @@ from ._scm_utility import find_max
 
 
 @dataclass(frozen=True)
-class DecisionStump:
+class SCMRule:
     feature_idx: int
     threshold: int
     kind: str = "greater"
@@ -21,8 +21,8 @@ class DecisionStump:
             return feature_values > self.threshold
         return feature_values <= self.threshold
 
-    def inverse(self) -> "DecisionStump":
-        return DecisionStump(
+    def inverse(self) -> "SCMRule":
+        return SCMRule(
             feature_idx=self.feature_idx,
             threshold=self.threshold,
             kind="greater" if self.kind == "less_equal" else "less_equal",
@@ -36,10 +36,10 @@ class DecisionStump:
 @dataclass(frozen=True)
 class SCMModel:
     model_type: str
-    rules: list[DecisionStump]
+    rules: list[SCMRule]
 
 
-def _validate_X_uint8(X: NDArray[np.uint8]) -> NDArray[np.uint8]:
+def _validate_X(X: NDArray[np.uint8]) -> None:
     if not isinstance(X, np.ndarray):
         raise TypeError("X must be a numpy.ndarray.")
     if X.dtype != np.uint8:
@@ -48,13 +48,11 @@ def _validate_X_uint8(X: NDArray[np.uint8]) -> NDArray[np.uint8]:
         raise ValueError("X must be a 2D array.")
     if not X.flags.f_contiguous:
         raise ValueError("X must be F-contiguous.")
-    return X
 
 
-def _validate_fit_inputs(
-    X: NDArray[np.uint8], y: NDArray[np.bool_]
-) -> tuple[NDArray[np.uint8], NDArray[np.bool_]]:
-    X = _validate_X_uint8(X)
+def _validate_data(X: NDArray[np.uint8], y: NDArray[np.bool_]) -> None:
+    _validate_X(X)
+
     if not isinstance(y, np.ndarray):
         raise TypeError("y must be a numpy.ndarray.")
     if y.dtype != np.bool_:
@@ -70,8 +68,6 @@ def _validate_fit_inputs(
     if not np.array_equal(classes, np.array([False, True], dtype=np.bool_)):
         raise ValueError("y must contain both boolean labels {False, True}.")
 
-    return X, y
-
 
 def fit_scm(
     X: NDArray[np.uint8],
@@ -83,24 +79,22 @@ def fit_scm(
     if model_type not in {"conjunction", "disjunction"}:
         raise ValueError("Unsupported model type.")
 
-    X, y = _validate_fit_inputs(X, y)
+    _validate_data(X, y)
     Xt = X.T
+    remaining_idx = np.arange(len(y), dtype=np.intp)
 
     if model_type == "conjunction":
-        neg_ex_idx = np.where(~y)[0].astype(np.intp, copy=False)
+        remaining_neg_idx = np.where(~y)[0]
         y_unified = y.astype(np.uint8, copy=False)
     else:
         # Learn a conjunction on inverted labels and invert added rules.
-        neg_ex_idx = np.where(y)[0].astype(np.intp, copy=False)
+        remaining_neg_idx = np.where(y)[0]
         y_unified = (~y).astype(np.uint8, copy=False)
 
-    X_argsort_by_feature_T = np.argsort(Xt, axis=1)
-    rules: list[DecisionStump] = []
+    perm = np.argsort(Xt, axis=1, stable=True) # stable is faster for uint8
+    rules: list[SCMRule] = []
 
-    remaining_example_idx = np.arange(len(y_unified), dtype=np.intp)
-    remaining_negative_example_idx = neg_ex_idx.astype(np.intp, copy=False)
-
-    while len(remaining_negative_example_idx) > 0 and len(rules) < max_rules:
+    while len(remaining_neg_idx) > 0 and len(rules) < max_rules:
         (
             opti_utility,
             opti_feat_idx,
@@ -108,15 +102,16 @@ def fit_scm(
             opti_kind,
             opti_n,
             opti_p_bar,
-        ) = find_max(p, Xt, y_unified, X_argsort_by_feature_T, remaining_example_idx)
+        ) = find_max(p, Xt, y_unified, perm, remaining_idx)
 
+        # Tiebreaker
         if len(opti_feat_idx) > 1:
             training_risk_decrease = (1.0 * opti_n) - opti_p_bar
             keep_idx = np.where(training_risk_decrease == training_risk_decrease.max())[0][0]
         else:
             keep_idx = 0
 
-        training_rule = DecisionStump(
+        training_rule = SCMRule(
             feature_idx=int(opti_feat_idx[keep_idx]),
             threshold=int(opti_threshold[keep_idx]),
             kind="greater" if int(opti_kind[keep_idx]) == 0 else "less_equal",
@@ -129,18 +124,18 @@ def fit_scm(
         logging.debug("The best rule has utility %.3f", opti_utility)
 
         feature_values = X[:, training_rule.feature_idx]
-        remaining_example_idx = remaining_example_idx[
-            training_rule.classify_feature_values(feature_values[remaining_example_idx])
+        remaining_idx = remaining_idx[
+            training_rule.classify_feature_values(feature_values[remaining_idx])
         ]
-        remaining_negative_example_idx = remaining_negative_example_idx[
-            training_rule.classify_feature_values(feature_values[remaining_negative_example_idx])
+        remaining_neg_idx = remaining_neg_idx[
+            training_rule.classify_feature_values(feature_values[remaining_neg_idx])
         ]
 
     return SCMModel(model_type=model_type, rules=rules)
 
 
 def predict_scm(model: SCMModel, X: NDArray[np.uint8]) -> NDArray[np.bool_]:
-    X = _validate_X_uint8(X)
+    _validate_X(X)
 
     if model.model_type == "conjunction":
         predictions = np.ones(X.shape[0], dtype=np.bool_)
