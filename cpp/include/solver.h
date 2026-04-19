@@ -26,7 +26,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 int find_max(double p,
              const uint8_t *Xt,
              const uint8_t *y,
-             const std::int64_t *Xas,
              const std::int64_t *example_idx,
              std::int64_t n_examples_included, // examples that we are allowed to look at
              std::int64_t n_examples,

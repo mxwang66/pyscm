@@ -13,10 +13,9 @@ py::tuple find_max_binding(
         double p,
         py::array_t<std::uint8_t, py::array::c_style> Xt,
         py::array_t<std::uint8_t, py::array::c_style> y,
-        py::array_t<std::int64_t, py::array::c_style> X_argsort_by_feature_T,
         py::array_t<std::int64_t, py::array::c_style> example_idx) {
 
-    if (Xt.ndim() != 2 || y.ndim() != 1 || X_argsort_by_feature_T.ndim() != 2 || example_idx.ndim() != 1) {
+    if (Xt.ndim() != 2 || y.ndim() != 1 || example_idx.ndim() != 1) {
         throw py::type_error("Unexpected array dimensions passed to find_max.");
     }
 
@@ -26,16 +25,9 @@ py::tuple find_max_binding(
     if (static_cast<std::int64_t>(y.shape(0)) != n_examples) {
         throw py::type_error("Xt and y must have compatible dimensions");
     }
-    if (static_cast<std::int64_t>(X_argsort_by_feature_T.shape(0)) != n_features) {
-        throw py::type_error("Xt must have as many rows as X_argsort_by_feature_T has rows");
-    }
-    if (static_cast<std::int64_t>(X_argsort_by_feature_T.shape(1)) != n_examples) {
-        throw py::type_error("Xt must have as many columns as X_argsort_by_feature_T has columns");
-    }
 
     const auto *Xt_data = Xt.data();
     const auto *y_data = y.data();
-    const auto *Xas_data = X_argsort_by_feature_T.data();
     const auto *example_idx_data = example_idx.data();
 
     BestUtility best_solution(100);
@@ -43,7 +35,6 @@ py::tuple find_max_binding(
             p,
             Xt_data,
             y_data,
-            Xas_data,
             example_idx_data,
             static_cast<std::int64_t>(example_idx.shape(0)),
             n_examples,
@@ -92,7 +83,6 @@ PYBIND11_MODULE(_scm_utility, m) {
             py::arg("p"),
             py::arg("Xt"),
             py::arg("y"),
-            py::arg("X_argsort_by_feature_T"),
             py::arg("example_idx"),
             "Find the split of maximum utility.");
 }
