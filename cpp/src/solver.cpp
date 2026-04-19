@@ -1,6 +1,4 @@
-#include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstdint>
 
 #include "best_utility.h"
@@ -68,28 +66,24 @@ int find_max(double p,
     for(std::int64_t i = 0; i < n_features; i++){
         std::array<std::int64_t, 256> negatives_by_value{};
         std::array<std::int64_t, 256> positives_by_value{};
-        std::array<bool, 256> value_observed{};
 
         for(std::int64_t j = 0; j < n_examples_included; j++){
             const std::int64_t idx = example_idx[j];
             const uint8_t value = Xt[i * n_examples + idx];
-            value_observed[value] = true;
-
-            if(y[idx] == 1){
-                positives_by_value[value] ++;
-            }
-            else{
-                negatives_by_value[value] ++;
-            }
+            const std::int64_t label = y[idx];
+            positives_by_value[value] += label;
+            negatives_by_value[value] += 1 - label;
         }
 
         std::int64_t cum_negatives = 0;
         std::int64_t cum_positives = 0;
         for(std::int64_t value = 0; value < 256; value++){
-            cum_negatives += negatives_by_value[value];
-            cum_positives += positives_by_value[value];
+            const std::int64_t negatives_at_value = negatives_by_value[value];
+            const std::int64_t positives_at_value = positives_by_value[value];
+            cum_negatives += negatives_at_value;
+            cum_positives += positives_at_value;
 
-            if(value_observed[value]){
+            if(negatives_at_value + positives_at_value > 0){
                 update_optimal_solution(out_best_solution,
                                         i,
                                         static_cast<uint8_t>(value),
